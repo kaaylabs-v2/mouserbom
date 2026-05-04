@@ -1,8 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback, useRef, useState } from "react";
 import { Upload, ArrowRight, BookOpen, Plug, FileSpreadsheet } from "lucide-react";
-import { recentJobs } from "@/lib/mockData";
-import { createJob } from "@/lib/mockApi";
+import { createJob, listJobs } from "@/lib/mockApi";
 import { StatusPill } from "@/components/atoms";
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
