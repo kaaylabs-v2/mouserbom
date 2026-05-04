@@ -469,6 +469,13 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
                     <div className="eyebrow text-muted-foreground mb-1">RATIONALE</div>
                     <p className="text-sm italic text-muted-foreground">{r.rationale}</p>
                   </div>
+                  <div className="col-span-3">
+                    <div className="eyebrow text-muted-foreground mb-1">AS REQUESTED</div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                      <div className="mono"><span className="text-muted-foreground">MPN:</span> <span className="text-foreground">{r.input.mpn || "—"}</span></div>
+                      <div className="mono"><span className="text-muted-foreground">Description:</span> <span className="text-foreground">{r.input.description || "—"}</span></div>
+                    </div>
+                  </div>
                   {r.alternatives.map((a) => (
                     <div key={a.sku} className="rounded-md border border-border bg-card p-3">
                       <div className="mono text-xs text-muted-foreground">{a.mfr}</div>
