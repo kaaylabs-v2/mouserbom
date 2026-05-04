@@ -190,7 +190,7 @@ export default function Results() {
                 <input
                   value={q}
                   onChange={(e) => updateParam("q", e.target.value)}
-                  placeholder="Search MPN, manufacturer, description"
+                  placeholder="Search MPN, manufacturer, description, or your line"
                   className="w-full h-9 pl-9 pr-3 rounded-md bg-card border border-border text-sm focus-ring" />
               </div>
               <div className="inline-flex rounded-md border border-border bg-card p-0.5">
