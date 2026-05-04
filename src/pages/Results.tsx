@@ -79,7 +79,8 @@ export default function Results() {
 
   const exportRows = (fmt: "csv" | "xlsx" | "json") => {
     const data = rows.map(r => ({
-      "#": r.n, SKU: r.sku, MPN: r.mpn, Manufacturer: r.mfr, Package: r.pkg,
+      "#": r.n, "As requested": r.input.mpn ?? r.input.description ?? "",
+      SKU: r.sku, MPN: r.mpn, Manufacturer: r.mfr, Package: r.pkg,
       Price: r.price, Stock: r.stock, Qty: r.qty, Confidence: r.confidence,
     }));
     const base = `${jobId}-results`;
