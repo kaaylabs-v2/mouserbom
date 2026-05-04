@@ -26,6 +26,7 @@ export default function Workspace() {
   const nav = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
+  const recentJobs = listJobs();
 
   const submit = useCallback((file: { name: string; size: number }) => {
     const job = createJob(file);
