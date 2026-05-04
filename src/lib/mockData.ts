@@ -33,7 +33,7 @@ const altSeed = (mpn: string, mfr: string, pkg: string, basePrice: number): AltR
   { sku: mpn + "-C3", mpn: mpn.replace(/.$/, "Z"), mfr: mfr === "Murata" ? "TDK" : mfr, pkg, price: +(basePrice * 1.02).toFixed(2), stock: 24800, match: { pkg: true, tol: false, voltage: true }, rationale: "Alternate manufacturer. Higher stock." },
 ];
 
-const baseSeed: Omit<ResultRow, "alternatives" | "raw" | "qty" | "lifecycle">[] = [
+const baseSeed: Omit<ResultRow, "alternatives" | "raw" | "qty" | "lifecycle" | "input">[] = [
   { n: 1,  sku: "STM32F407VGT6",       mpn: "STM32F407VGT6",         mfr: "STMicroelectronics", pkg: "LQFP-100",       price: 8.42,  stock: 12480,  alts: 3, confidence: 0.96, rationale: "Exact MPN match. Attribute compatibility 100% (package, voltage, lifecycle: active)." },
   { n: 2,  sku: "TPS54360DDAR",        mpn: "TPS54360DDAR",          mfr: "Texas Instruments",  pkg: "SO PowerPAD-8",  price: 2.18,  stock: 4210,   alts: 3, confidence: 0.92, rationale: "Exact MPN match. Lifecycle active. Tier pricing available at qty 100+." },
   { n: 3,  sku: "LMK04828BISQ/NOPB",   mpn: "LMK04828BISQ/NOPB",     mfr: "Texas Instruments",  pkg: "WQFN-64",        price: 11.05, stock: 820,    alts: 3, confidence: 0.88, rationale: "Exact MPN match. Attribute compatibility 95%. Lead time within target." },
@@ -60,12 +60,24 @@ const baseSeed: Omit<ResultRow, "alternatives" | "raw" | "qty" | "lifecycle">[] 
   { n: 24, sku: "RC0805FR-0710KL",     mpn: "RC0805FR-0710KL",        mfr: "Yageo",              pkg: "0805",           price: 0.01,  stock: 612000, alts: 3, confidence: 0.99, rationale: "Exact MPN. Volume pricing." },
 ];
 
+const inputBy: Record<number, { mpn?: string; description?: string }> = {
+  4:  { mpn: "CRCW0603-1K00-FKEA" },
+  5:  { mpn: "GRM188R71H104K" },
+  6:  { description: "0603 — pull-up on RESET" },
+  12: { description: "RS-232 transceiver, 5V" },
+  16: { description: "LDO 3.3V 1A" },
+  17: { mpn: "TLV1117-3.3" },
+  22: { description: "USB-A connector through-hole" },
+  24: { description: "10K 0805 1%" },
+};
+
 export const seedRows: ResultRow[] = baseSeed.map((r) => ({
   ...r,
   qty: 50,
   lifecycle: r.confidence > 0.5 ? "active" : "obsolete",
   alternatives: r.alts ? altSeed(r.mpn, r.mfr === "—" ? "Generic" : r.mfr, r.pkg === "—" ? "0603" : r.pkg, r.price ?? 0.1) : [],
   raw: { description: `${r.mfr} ${r.pkg} ${r.mpn}`, mpn: r.mpn, qty: 50 },
+  input: inputBy[r.n] ?? { mpn: r.mpn },
 }));
 
 export type Job = {
