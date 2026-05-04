@@ -391,6 +391,7 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
         onClick={(e) => {
           const t = e.target as HTMLElement;
           if (t.closest("button, input, [data-noclick]")) return;
+          if (t.closest("[data-input-cell]")) { onOpen("input"); return; }
           onOpen();
         }}
       >
@@ -401,6 +402,9 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
               className="opacity-0 group-hover:opacity-100 checked:opacity-100 h-3.5 w-3.5 accent-[hsl(var(--accent))]" />
             <span>{r.n.toString().padStart(2, "0")}</span>
           </div>
+        </td>
+        <td className="px-3 py-3 max-w-[220px]" data-input-cell>
+          <YourLineCell input={r.input} />
         </td>
         <td className="px-3 py-3">
           <div className="flex items-center gap-1.5">
