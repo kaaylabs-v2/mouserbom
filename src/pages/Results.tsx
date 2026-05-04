@@ -211,6 +211,7 @@ export default function Results() {
                 <thead className="text-xs text-muted-foreground bg-surface-muted">
                   <tr className="border-b border-border">
                     <th className="w-10 text-left px-4 py-2.5 font-medium">#</th>
+                    <th className="text-left px-3 py-2.5 font-medium">Your line</th>
                     <th className="text-left px-3 py-2.5 font-medium">Recommended part</th>
                     <th className="text-left px-3 py-2.5 font-medium">MPN</th>
                     <th className="text-left px-3 py-2.5 font-medium">Manufacturer</th>
