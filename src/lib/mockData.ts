@@ -14,6 +14,7 @@ export type ResultRow = {
   qty: number;
   alternatives: AltRow[];
   raw: { description: string; mpn: string; qty: number };
+  input: { mpn?: string; description?: string };
 };
 export type AltRow = {
   sku: string;
