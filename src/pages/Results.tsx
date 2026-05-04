@@ -509,6 +509,20 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   );
 }
 
+function YourLineCell({ input }: { input: { mpn?: string; description?: string } }) {
+  const text = input.mpn && input.mpn.length > 0 ? input.mpn : (input.description ?? "");
+  const display = text.length > 40 ? text.slice(0, 40) + "…" : text;
+  if (!text) return <span className="mono text-xs text-muted-foreground">—</span>;
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <span className="mono text-xs text-muted-foreground truncate block max-w-[200px] cursor-default">{display}</span>
+      </TooltipTrigger>
+      <TooltipContent><span className="mono text-xs">{text}</span></TooltipContent>
+    </Tooltip>
+  );
+}
+
 function LineDrawer({ row, tab, setTab, onClose, onAction }: {
   row: ResultRow; tab: DrawerTab; setTab: (t: DrawerTab) => void;
   onClose: () => void; onAction: (a: "accept" | "reject" | "replace", r: ResultRow, replacedWith?: string) => void;
