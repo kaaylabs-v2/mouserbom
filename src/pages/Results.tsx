@@ -42,7 +42,7 @@ export default function Results() {
     return rows.filter(r => {
       if (tab === "no-match" && r.sku !== "no_match") return false;
       if (tab === "flagged" && (r.sku === "no_match" || r.confidence >= 0.85)) return false;
-      if (q && !(r.sku + r.mpn + r.mfr).toLowerCase().includes(q.toLowerCase())) return false;
+      if (q && !(r.sku + r.mpn + r.mfr + (r.input.mpn ?? "") + (r.input.description ?? "")).toLowerCase().includes(q.toLowerCase())) return false;
       if (inStock && (!r.stock || r.stock === 0)) return false;
       if (hasAlts && r.alts === 0) return false;
       const band: FilterBand = r.confidence >= 0.85 ? "high" : r.confidence >= 0.6 ? "med" : "low";
@@ -79,7 +79,8 @@ export default function Results() {
 
   const exportRows = (fmt: "csv" | "xlsx" | "json") => {
     const data = rows.map(r => ({
-      "#": r.n, SKU: r.sku, MPN: r.mpn, Manufacturer: r.mfr, Package: r.pkg,
+      "#": r.n, "As requested": r.input.mpn ?? r.input.description ?? "",
+      SKU: r.sku, MPN: r.mpn, Manufacturer: r.mfr, Package: r.pkg,
       Price: r.price, Stock: r.stock, Qty: r.qty, Confidence: r.confidence,
     }));
     const base = `${jobId}-results`;
@@ -189,7 +190,7 @@ export default function Results() {
                 <input
                   value={q}
                   onChange={(e) => updateParam("q", e.target.value)}
-                  placeholder="Search MPN, manufacturer, description"
+                  placeholder="Search MPN, manufacturer, description, or your line"
                   className="w-full h-9 pl-9 pr-3 rounded-md bg-card border border-border text-sm focus-ring" />
               </div>
               <div className="inline-flex rounded-md border border-border bg-card p-0.5">
@@ -210,6 +211,7 @@ export default function Results() {
                 <thead className="text-xs text-muted-foreground bg-surface-muted">
                   <tr className="border-b border-border">
                     <th className="w-10 text-left px-4 py-2.5 font-medium">#</th>
+                    <th className="text-left px-3 py-2.5 font-medium">Your line</th>
                     <th className="text-left px-3 py-2.5 font-medium">Recommended part</th>
                     <th className="text-left px-3 py-2.5 font-medium">MPN</th>
                     <th className="text-left px-3 py-2.5 font-medium">Manufacturer</th>
@@ -238,7 +240,7 @@ export default function Results() {
                     />
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-12 text-sm text-muted-foreground">No lines match these filters.</td></tr>
+                    <tr><td colSpan={11} className="text-center py-12 text-sm text-muted-foreground">No lines match these filters.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -389,6 +391,7 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
         onClick={(e) => {
           const t = e.target as HTMLElement;
           if (t.closest("button, input, [data-noclick]")) return;
+          if (t.closest("[data-input-cell]")) { onOpen("input"); return; }
           onOpen();
         }}
       >
@@ -399,6 +402,9 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
               className="opacity-0 group-hover:opacity-100 checked:opacity-100 h-3.5 w-3.5 accent-[hsl(var(--accent))]" />
             <span>{r.n.toString().padStart(2, "0")}</span>
           </div>
+        </td>
+        <td className="px-3 py-3 max-w-[220px]" data-input-cell>
+          <YourLineCell input={r.input} />
         </td>
         <td className="px-3 py-3">
           <div className="flex items-center gap-1.5">
@@ -455,13 +461,20 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
       <AnimatePresence>
         {open && !isNoMatch && (
           <tr>
-            <td colSpan={10} className="bg-surface-muted border-b border-border p-0">
+            <td colSpan={11} className="bg-surface-muted border-b border-border p-0">
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden">
                 <div className="px-8 py-5 grid grid-cols-3 gap-4">
                   <div className="col-span-3">
                     <div className="eyebrow text-muted-foreground mb-1">RATIONALE</div>
                     <p className="text-sm italic text-muted-foreground">{r.rationale}</p>
+                  </div>
+                  <div className="col-span-3">
+                    <div className="eyebrow text-muted-foreground mb-1">AS REQUESTED</div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                      <div className="mono"><span className="text-muted-foreground">MPN:</span> <span className="text-foreground">{r.input.mpn || "—"}</span></div>
+                      <div className="mono"><span className="text-muted-foreground">Description:</span> <span className="text-foreground">{r.input.description || "—"}</span></div>
+                    </div>
                   </div>
                   {r.alternatives.map((a) => (
                     <div key={a.sku} className="rounded-md border border-border bg-card p-3">
@@ -500,6 +513,20 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
     <span className={`text-[10px] mono px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 ${ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>
       {children} {ok ? "✓" : "✗"}
     </span>
+  );
+}
+
+function YourLineCell({ input }: { input: { mpn?: string; description?: string } }) {
+  const text = input.mpn && input.mpn.length > 0 ? input.mpn : (input.description ?? "");
+  const display = text.length > 40 ? text.slice(0, 40) + "…" : text;
+  if (!text) return <span className="mono text-xs text-muted-foreground">—</span>;
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <span className="mono text-xs text-muted-foreground truncate block max-w-[200px] cursor-default">{display}</span>
+      </TooltipTrigger>
+      <TooltipContent><span className="mono text-xs">{text}</span></TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -70,6 +70,7 @@ export default function Processing() {
           <thead className="text-xs text-muted-foreground">
             <tr className="border-b border-border">
               <th className="text-left font-medium px-5 py-2.5 w-10">#</th>
+              <th className="text-left font-medium px-3 py-2.5">Your line</th>
               <th className="text-left font-medium px-3 py-2.5">Recommended part</th>
               <th className="text-left font-medium px-3 py-2.5">Manufacturer</th>
               <th className="text-left font-medium px-3 py-2.5">Pkg</th>
@@ -82,6 +83,9 @@ export default function Processing() {
               return (
                 <tr key={r.n} className="border-b border-border last:border-0">
                   <td className="px-5 py-2.5 mono text-xs text-muted-foreground">{r.n.toString().padStart(2, "0")}</td>
+                  <td className="px-3 py-2.5 mono text-xs text-muted-foreground max-w-[200px] truncate">
+                    {(() => { const t = r.input.mpn || r.input.description || ""; return t.length > 40 ? t.slice(0, 40) + "…" : t; })()}
+                  </td>
                   <td className="px-3 py-2.5">
                     <AnimatePresence mode="wait">
                       {revealed ? (
