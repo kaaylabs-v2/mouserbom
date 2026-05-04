@@ -144,7 +144,7 @@ export default function Workspace() {
       {/* QUICKSTART */}
       <section className="max-w-7xl mx-auto px-8 mt-12 mb-16 grid grid-cols-3 gap-6">
         <button
-          onClick={() => submit({ name: "sample-mainboard.xlsx", size: 1 })}
+          onClick={() => submit({ name: "Sample_Customer_BOM.xlsx", size: 1 })}
           className="text-left rounded-lg border border-border bg-card p-5 hover:border-accent transition-colors focus-ring">
           <FileSpreadsheet className="h-4 w-4 text-accent" />
           <div className="mt-3 font-medium">Try a sample BOM</div>
