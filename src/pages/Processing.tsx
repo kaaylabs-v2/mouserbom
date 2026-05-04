@@ -70,6 +70,7 @@ export default function Processing() {
           <thead className="text-xs text-muted-foreground">
             <tr className="border-b border-border">
               <th className="text-left font-medium px-5 py-2.5 w-10">#</th>
+              <th className="text-left font-medium px-3 py-2.5">Your line</th>
               <th className="text-left font-medium px-3 py-2.5">Recommended part</th>
               <th className="text-left font-medium px-3 py-2.5">Manufacturer</th>
               <th className="text-left font-medium px-3 py-2.5">Pkg</th>
