@@ -42,7 +42,7 @@ export default function Results() {
     return rows.filter(r => {
       if (tab === "no-match" && r.sku !== "no_match") return false;
       if (tab === "flagged" && (r.sku === "no_match" || r.confidence >= 0.85)) return false;
-      if (q && !(r.sku + r.mpn + r.mfr).toLowerCase().includes(q.toLowerCase())) return false;
+      if (q && !(r.sku + r.mpn + r.mfr + (r.input.mpn ?? "") + (r.input.description ?? "")).toLowerCase().includes(q.toLowerCase())) return false;
       if (inStock && (!r.stock || r.stock === 0)) return false;
       if (hasAlts && r.alts === 0) return false;
       const band: FilterBand = r.confidence >= 0.85 ? "high" : r.confidence >= 0.6 ? "med" : "low";
