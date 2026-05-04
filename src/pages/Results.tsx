@@ -240,7 +240,7 @@ export default function Results() {
                     />
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-12 text-sm text-muted-foreground">No lines match these filters.</td></tr>
+                    <tr><td colSpan={11} className="text-center py-12 text-sm text-muted-foreground">No lines match these filters.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -457,7 +457,7 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
       <AnimatePresence>
         {open && !isNoMatch && (
           <tr>
-            <td colSpan={10} className="bg-surface-muted border-b border-border p-0">
+            <td colSpan={11} className="bg-surface-muted border-b border-border p-0">
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden">
                 <div className="px-8 py-5 grid grid-cols-3 gap-4">
