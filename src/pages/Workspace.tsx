@@ -1,8 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback, useRef, useState } from "react";
 import { Upload, ArrowRight, BookOpen, Plug, FileSpreadsheet } from "lucide-react";
-import { recentJobs } from "@/lib/mockData";
-import { createJob } from "@/lib/mockApi";
+import { createJob, listJobs } from "@/lib/mockApi";
 import { StatusPill } from "@/components/atoms";
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
@@ -27,6 +26,7 @@ export default function Workspace() {
   const nav = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
+  const recentJobs = listJobs();
 
   const submit = useCallback((file: { name: string; size: number }) => {
     const job = createJob(file);
@@ -144,7 +144,7 @@ export default function Workspace() {
       {/* QUICKSTART */}
       <section className="max-w-7xl mx-auto px-8 mt-12 mb-16 grid grid-cols-3 gap-6">
         <button
-          onClick={() => submit({ name: "sample-mainboard.xlsx", size: 1 })}
+          onClick={() => submit({ name: "Sample_Customer_BOM.xlsx", size: 1 })}
           className="text-left rounded-lg border border-border bg-card p-5 hover:border-accent transition-colors focus-ring">
           <FileSpreadsheet className="h-4 w-4 text-accent" />
           <div className="mt-3 font-medium">Try a sample BOM</div>
