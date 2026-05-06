@@ -9,6 +9,7 @@ import Processing from "./pages/Processing";
 import Results from "./pages/Results";
 import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
+import Architecture from "./pages/Architecture";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/jobs/:jobId/results" element={<Results />} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/architecture" element={<Architecture />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
