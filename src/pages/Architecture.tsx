@@ -12,7 +12,7 @@ type Stage = {
   status: string;
   accuracy: string;
   tech: string[];
-  example: { input: string; output: string };
+  examples: { input: string; output: string; note?: string }[];
 };
 
 const stages: Stage[] = [
@@ -21,7 +21,11 @@ const stages: Stage[] = [
     job: "Accept any BOM file (XLSX, CSV, PDF). Detect format, sheets, and encoding. Stream into a uniform row buffer.",
     status: "Stable", accuracy: "100% format coverage on test corpus (n=842)",
     tech: ["SheetJS", "pdfplumber", "MIME sniffing", "Deterministic file router"],
-    example: { input: "messy_bom_v3.xlsx (3 sheets, merged headers)", output: "Uniform row buffer · 412 rows · sheet=BOM_R3" },
+    examples: [
+      { input: "messy_bom_v3.xlsx · 3 sheets · merged headers", output: "Uniform row buffer · 412 rows · sheet=BOM_R3", note: "Auto-selects the densest sheet" },
+      { input: "altium_export.csv · UTF-16 LE · semicolon-delimited", output: "212 rows · encoding=utf-16le · delim=';'", note: "Encoding sniffed from BOM marker" },
+      { input: "ProductionBOM.pdf · 4-page table, scanned", output: "187 rows extracted · OCR fallback applied to p.3", note: "Falls back to OCR per-page when text layer is missing" },
+    ],
   },
   {
     id: "parse", n: 2, name: "Parse", type: "llm",
@@ -29,14 +33,23 @@ const stages: Stage[] = [
     status: "LLM-assisted",
     accuracy: "98.4% column-role F1 across 1,200 customer headers",
     tech: ["Anthropic Claude Haiku", "Few-shot column-role prompts", "Rules-based fallback extractor"],
-    example: { input: "Cols: ['Part #', 'Vendor', 'Desc.', 'Qty/board']", output: "{ mpn: 'Part #', mfr: 'Vendor', desc: 'Desc.', qty: 'Qty/board' }" },
+    examples: [
+      { input: "['Part #', 'Vendor', 'Desc.', 'Qty/board', 'RefDes']", output: "{ mpn:'Part #', mfr:'Vendor', desc:'Desc.', qty:'Qty/board', ref:'RefDes' }" },
+      { input: "['Artikelnummer', 'Hersteller', 'Bezeichnung', 'Menge']  (German)", output: "{ mpn:'Artikelnummer', mfr:'Hersteller', desc:'Bezeichnung', qty:'Menge' }", note: "Multilingual header recognition" },
+      { input: "Headerless rows beginning 'C1,C2 | 100nF 0603 X7R | 14'", output: "{ ref:'C1,C2', desc:'100nF 0603 X7R', qty:14 }  · header inferred", note: "No header row → role inference from value patterns" },
+    ],
   },
   {
     id: "normalize", n: 3, name: "Normalize", type: "det",
     job: "Canonicalize values: strip packaging suffixes, unify units, fold whitespace, expand abbreviations (10K → 10 kΩ).",
     status: "Stable", accuracy: "99.7% canonicalization match vs gold set",
     tech: ["Regex grammars", "Unit conversion tables", "Manufacturer alias map"],
-    example: { input: "'TI LM358DR2G  (SOIC-8)' · '10K 0805 1%'", output: "mfr=Texas Instruments · mpn=LM358DR2G · pkg=SOIC-8 · 10kΩ 0805 ±1%" },
+    examples: [
+      { input: "'TI  LM358DR2G   (SOIC-8)'", output: "mfr=Texas Instruments · mpn=LM358DR2G · pkg=SOIC-8", note: "Alias 'TI' → 'Texas Instruments'" },
+      { input: "'10K 0805 1%'", output: "value=10 kΩ · pkg=0805 · tol=±1%" },
+      { input: "'4u7 25V X5R 0402'", output: "cap=4.7 µF · v=25 V · diel=X5R · pkg=0402", note: "European decimal notation expanded" },
+      { input: "'CAP CER 0.1UF 50V X7R 0603 -RC'", output: "cap=0.1 µF · v=50 V · diel=X7R · pkg=0603", note: "Packaging suffix '-RC' stripped" },
+    ],
   },
   {
     id: "retrieve", n: 4, name: "Retrieve", type: "ml",
@@ -44,7 +57,11 @@ const stages: Stage[] = [
     status: "Production",
     accuracy: "Recall@20 = 99.1% · median 14 candidates/line",
     tech: ["BM25 (OpenSearch)", "bge-large-en embeddings", "pgvector ANN", "Catalog-bounded retrieval"],
-    example: { input: "LM358DR2G · op-amp · SOIC-8", output: "[595-LM358DR2G, 595-LM358ADR, 863-NCV20034DR2G, … 17 more]" },
+    examples: [
+      { input: "LM358DR2G · op-amp · SOIC-8", output: "[595-LM358DR2G, 595-LM358ADR, 863-NCV20034DR2G, … 17 more]", note: "Lexical hit on exact MPN dominates" },
+      { input: "'10 kΩ 0805 ±1% thick film'", output: "[652-CR0805FX-1002ELF, 71-CRCW080510K0FKEA, 603-RC0805FR-0710KL, … 22 more]", note: "Vector recall — no exact MPN given" },
+      { input: "'0.1µF 50V X7R 0603'", output: "[81-GRM188R71H104KA93D, 810-CGA3E2X7R1H104K, 77-VJ0603Y104KXJPBC, … 28 more]", note: "Generic part — broad candidate set" },
+    ],
   },
   {
     id: "rank", n: 5, name: "Rank", type: "llm",
@@ -52,7 +69,11 @@ const stages: Stage[] = [
     status: "LLM-assisted",
     accuracy: "Top-1 match accuracy 96.2% on labeled set (n=4,318)",
     tech: ["Claude Haiku (constrained JSON)", "Attribute-match feature vector", "Catalog-id whitelist enforcement"],
-    example: { input: "Candidate set of 20 SKUs + normalized line", output: "595-LM358DR2G · score=0.94 · rationale='exact MPN + pkg match'" },
+    examples: [
+      { input: "20 candidates · target: LM358DR2G / SOIC-8 / TI", output: "595-LM358DR2G · 0.94 · 'exact MPN + pkg + mfr'" },
+      { input: "25 candidates · target: 10 kΩ 0805 ±1% (no MPN)", output: "71-CRCW080510K0FKEA · 0.81 · 'attr-exact, preferred mfr'", note: "Tie-breaks on substitution policy" },
+      { input: "Hallucination attempt: LLM proposes '595-FAKE-999'", output: "REJECTED · whitelist violation · falls back to next valid candidate", note: "Catalog-id guard prevents hallucinated SKUs" },
+    ],
   },
   {
     id: "confidence", n: 6, name: "Confidence", type: "ml",
@@ -60,21 +81,33 @@ const stages: Stage[] = [
     status: "Calibrated",
     accuracy: "ECE = 0.024 · Brier = 0.061",
     tech: ["Gradient-boosted classifier", "Isotonic calibration", "Features: rank gap, attribute coverage, retrieval score"],
-    example: { input: "Top-1 score=0.94 · rank-gap=0.31 · attr-coverage=1.00", output: "P(correct) = 0.97 → band: HIGH" },
+    examples: [
+      { input: "score=0.94 · rank-gap=0.31 · attr-coverage=1.00", output: "P=0.97 → HIGH", note: "Auto-acceptable for most policies" },
+      { input: "score=0.71 · rank-gap=0.04 · attr-coverage=0.83", output: "P=0.58 → MEDIUM", note: "Close runner-up triggers review" },
+      { input: "score=0.42 · rank-gap=0.01 · attr-coverage=0.50", output: "P=0.19 → LOW · flag for human", note: "Routed to procurement engineer queue" },
+    ],
   },
   {
     id: "enrich", n: 7, name: "Enrich", type: "det",
     job: "Attach live Mouser catalog data: price tiers, stock, lifecycle, datasheet URLs, RoHS, lead time.",
     status: "Stable", accuracy: "Catalog SLA: <1.2s p95 per line",
     tech: ["Mouser Catalog API", "Per-region pricing tables", "Lifecycle service"],
-    example: { input: "595-LM358DR2G", output: "$0.42 @1k · 18,420 in stock · Active · RoHS · DS link" },
+    examples: [
+      { input: "595-LM358DR2G", output: "$0.42 @1k · 18,420 in stock · Active · RoHS · DS link" },
+      { input: "863-NCV20034DR2G  (NRND)", output: "$0.61 @1k · 2,140 in stock · NRND · last-buy 2026-09-30", note: "Lifecycle flag surfaces to UI" },
+      { input: "71-CRCW080510K0FKEA · qty=4,500", output: "tier price = $0.0048 · 312k stock · 6-wk lead on backorder" },
+    ],
   },
   {
     id: "assemble", n: 8, name: "Assemble", type: "det",
     job: "Compose the final results payload: row decisions, alternates, audit trail, export shapes (CSV / XLSX / JSON / API).",
     status: "Stable", accuracy: "Schema-validated · 0 export defects in last 30d",
     tech: ["Zod schemas", "Deterministic serializer", "Audit log writer"],
-    example: { input: "All per-line decisions + signals", output: "results.json · results.xlsx · audit.jsonl" },
+    examples: [
+      { input: "412 per-line decisions + signals", output: "results.json · results.xlsx · audit.jsonl" },
+      { input: "Same job, API caller", output: "POST /v1/jobs/{id}/results → 200 · 412 rows · ETag set", note: "Idempotent · cached by job hash" },
+      { input: "Row with rejected pick + accepted alternate", output: "audit.jsonl appended: {action:'replace', from:'…', to:'…', user:'ac@mouser'}" },
+    ],
   },
 ];
 
@@ -203,12 +236,19 @@ export default function Architecture() {
             </ul>
           </div>
           <div className="p-6">
-            <div className="eyebrow text-muted-foreground mb-3">EXAMPLE TRANSFORMATION</div>
-            <div className="mono text-xs uppercase text-muted-foreground mb-1">Input</div>
-            <div className="mono text-xs bg-surface-muted border border-border rounded-md p-3 mb-3 break-words">{active.example.input}</div>
-            <div className="flex justify-center text-muted-foreground mb-1"><ChevronRight className="h-4 w-4 rotate-90" /></div>
-            <div className="mono text-xs uppercase text-muted-foreground mb-1">Output</div>
-            <div className="mono text-xs bg-surface-muted border border-border rounded-md p-3 break-words">{active.example.output}</div>
+            <div className="eyebrow text-muted-foreground mb-3">EXAMPLE TRANSFORMATIONS</div>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {active.examples.map((ex, i) => (
+                <div key={i} className="rounded-md border border-border bg-surface-muted/50 p-3">
+                  <div className="mono text-[10px] uppercase text-muted-foreground mb-1">Input</div>
+                  <div className="mono text-xs break-words">{ex.input}</div>
+                  <div className="flex justify-center text-muted-foreground my-1"><ChevronRight className="h-3.5 w-3.5 rotate-90" /></div>
+                  <div className="mono text-[10px] uppercase text-muted-foreground mb-1">Output</div>
+                  <div className="mono text-xs break-words">{ex.output}</div>
+                  {ex.note && <div className="mt-2 text-[11px] text-muted-foreground italic">{ex.note}</div>}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
