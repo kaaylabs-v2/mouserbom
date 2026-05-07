@@ -1,0 +1,263 @@
+{
+  "metrics": {
+    "extractionAccuracy": "89%",
+    "extractionLabel": "MPN extraction accuracy on test BOM",
+    "costPerBom": "$0.035",
+    "costLabel": "per BOM end-to-end cost",
+    "auditLabel": "Every line audit-traced to source"
+  },
+  "stages": [
+    {
+      "id": "ingest", "n": 1, "name": "Ingest", "type": "det",
+      "summary": "Accept any BOM file the customer drops in — XLSX, CSV, or PDF — detect format, encoding, and sheet structure, then stream rows into a uniform buffer for the rest of the pipeline.",
+      "bullets": [
+        "SheetJS for XLSX · pdfplumber + OCR fallback for PDF",
+        "Auto-detects encoding (UTF-8/16) and delimiter",
+        "Selects the densest sheet when workbook has multiple",
+        "Output: uniform RawRow[] with cell positions preserved"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "100% format coverage (n=842)",
+      "latency": "p95 280ms", "cost": "$0.000",
+      "example": {
+        "input": "messy_bom_v3.xlsx · 3 sheets · merged headers",
+        "output": "RawRow[] · 412 rows · sheet=BOM_R3"
+      }
+    },
+    {
+      "id": "parse", "n": 2, "name": "Parse", "type": "llm",
+      "summary": "Identify which columns are MPN, manufacturer, description, qty, and reference designator. A rules engine handles the easy majority; the LLM handles the rest. Neither path can invent part numbers.",
+      "bullets": [
+        "Rules engine handles ~65% of rows deterministically",
+        "Anthropic Haiku handles the messy remainder",
+        "LLM is structurally barred from inventing MPNs",
+        "Output: ParsedLineItem with parser_route + confidence"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "Column-role F1 = 0.984",
+      "latency": "p95 450ms", "cost": "$0.002",
+      "example": {
+        "input": "['Artikelnummer','Hersteller','Bezeichnung','Menge']",
+        "output": "{ mpn:'Artikelnummer', mfr:'Hersteller', desc:'Bezeichnung', qty:'Menge' }"
+      }
+    },
+    {
+      "id": "normalize", "n": 3, "name": "Normalize", "type": "det",
+      "summary": "Canonicalize values so downstream stages compare apples to apples: strip packaging suffixes, unify units, fold whitespace, expand abbreviations, resolve manufacturer aliases.",
+      "bullets": [
+        "Regex grammars for value/unit normalization (4k7 → 4.7k)",
+        "Manufacturer alias index (Panasonic → Panasonic Electronic Components)",
+        "Reference designator range expansion (R5-R7 → [R5,R6,R7])",
+        "Output: NormalizedLineItem · normalizer_version stamped"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "99.7% match vs gold set",
+      "latency": "p95 12ms", "cost": "$0.000",
+      "example": {
+        "input": "'TI LM358DR2G (SOIC-8)'",
+        "output": "mfr=Texas Instruments · mpn=LM358DR2G · pkg=SOIC-8"
+      }
+    },
+    {
+      "id": "retrieve", "n": 4, "name": "Retrieve", "type": "ml",
+      "summary": "Pull a bounded candidate set of real Mouser SKUs using four parallel retrieval lanes, then fuse them. The ranker downstream may only choose from this set.",
+      "bullets": [
+        "Lexical Exact · direct MPN lookup",
+        "Lexical Fuzzy · pg_trgm trigram match",
+        "Semantic · Voyage embeddings + pgvector HNSW",
+        "Cross-Reference · catalog suggestion columns",
+        "Reciprocal Rank Fusion produces final candidate set"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "Recall@20 = 99.1%",
+      "latency": "p95 320ms", "cost": "$0.001",
+      "example": {
+        "input": "ERJ-3EKF4701V · 4.7k 0603 1%",
+        "output": "5 candidate SKUs · all from real Mouser catalog"
+      },
+      "lanes": [
+        { "name": "Lexical Exact",  "tech": "direct MPN lookup",      "candidates": ["652-ERJ-3EKF4701V","652-ERJ3EKF4701V"] },
+        { "name": "Lexical Fuzzy",  "tech": "pg_trgm trigram",         "candidates": ["652-ERJ-3GEYJ472V","652-ERJ-PA3F4701V"] },
+        { "name": "Semantic",       "tech": "Voyage + pgvector HNSW",  "candidates": ["71-CRCW06034K70FKEA","603-RC0603FR-074K7L","667-ERJ-3EKF4701V"] },
+        { "name": "Cross-Reference","tech": "catalog suggestion cols", "candidates": ["652-ERJ-PA3F4701V"] }
+      ]
+    },
+    {
+      "id": "rank", "n": 5, "name": "Rank", "type": "llm",
+      "summary": "Score the candidate set against the normalized line. Claude Sonnet receives an enumerated list and must return an INDEX into that list — not a free-form SKU. Off-list responses are rejected.",
+      "bullets": [
+        "Claude Sonnet with constrained JSON output",
+        "Input: enumerated candidate list (1..N) + normalized line",
+        "Output: { index: int, rationale: string }",
+        "Catalog-id whitelist enforced before response leaves ranker"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "Top-1 = 96.2% (n=4,318)",
+      "latency": "p95 720ms", "cost": "$0.018",
+      "example": {
+        "input": "5 candidates · target ERJ-3EKF4701V",
+        "output": "{ index: 0, rationale: 'Exact MPN, 4.7k 1% 0603 thick film' }"
+      }
+    },
+    {
+      "id": "confidence", "n": 6, "name": "Confidence", "type": "ml",
+      "summary": "A separate calibrated classifier emits a probability that the top pick is correct. The LLM never grades itself. A 0.9 means we expect to be right ~9 times in 10 on similar lines.",
+      "bullets": [
+        "Gradient-boosted classifier with isotonic calibration",
+        "Signals: top1−top2 margin · attribute match % · lexical · semantic · policy penalty",
+        "Bands: High ≥0.85 · Medium 0.6–0.85 · Low <0.6 · no_match <0.4",
+        "ECE = 0.024 · Brier = 0.061"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "ECE = 0.024",
+      "latency": "p95 8ms", "cost": "$0.000",
+      "example": {
+        "input": "margin=0.32 · attr=1.00 · lex=1.0 · sem=0.91",
+        "output": "P=0.94 → HIGH"
+      }
+    },
+    {
+      "id": "enrich", "n": 7, "name": "Enrich", "type": "det",
+      "summary": "Attach live Mouser catalog data to each accepted line: tier pricing, stock, lifecycle, RoHS, datasheet links, and lead time.",
+      "bullets": [
+        "Mouser Catalog API · per-region pricing",
+        "Lifecycle service for NRND / EOL flags",
+        "Datasheet URL resolution",
+        "Output: EnrichedLineItem · catalog_snapshot_id stamped"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "Catalog SLA p95 < 1.2s",
+      "latency": "p95 1.1s", "cost": "$0.000",
+      "example": {
+        "input": "652-ERJ-3EKF4701V · qty=1000",
+        "output": "$0.024 @1k · 12,450 in stock · Active · RoHS"
+      }
+    },
+    {
+      "id": "assemble", "n": 8, "name": "Assemble", "type": "det",
+      "summary": "Compose the final results payload: per-line decisions, alternates, full audit trail, export shapes (CSV / XLSX / JSON / API).",
+      "bullets": [
+        "Zod-validated schemas",
+        "Deterministic serializer",
+        "Audit log: every version stamp, every signal",
+        "Idempotent · cached by job hash"
+      ],
+      "status": "Shipped", "statusTone": "ok",
+      "accuracy": "0 export defects in 30d",
+      "latency": "p95 60ms", "cost": "$0.000",
+      "example": {
+        "input": "412 per-line decisions + signals",
+        "output": "results.json · results.xlsx · audit.jsonl"
+      }
+    }
+  ],
+  "walkthrough": {
+    "raw": ["R5-R7", "4k7", "0603", "1%", "ERJ-3EKF4701V", "Panasonic"],
+    "parsed": {
+      "mpn": "ERJ-3EKF4701V",
+      "manufacturer": "Panasonic",
+      "package": "0603",
+      "value": "4.7k",
+      "tolerance": "1%",
+      "refdes_set": ["R5","R6","R7"],
+      "parser_route": "rules",
+      "parse_confidence": 0.95
+    },
+    "normalized": {
+      "manufacturer": "Panasonic Electronic Components",
+      "value": "4.7kΩ",
+      "normalizer_version": "b3_v0",
+      "note": "Catalog has 'Panasonic Electronic Components' — alias index resolved from 'Panasonic'."
+    },
+    "retrieved": {
+      "lanes": [
+        { "name": "Lexical Exact",   "score": 1.00, "candidates": ["652-ERJ-3EKF4701V"] },
+        { "name": "Lexical Fuzzy",   "score": 0.74, "candidates": ["652-ERJ-PA3F4701V","652-ERJ-3GEYJ472V"] },
+        { "name": "Semantic",        "score": 0.91, "candidates": ["71-CRCW06034K70FKEA","603-RC0603FR-074K7L"] },
+        { "name": "Cross-Reference", "score": 0.62, "candidates": ["652-ERJ-PA3F4701V"] }
+      ],
+      "fused": [
+        { "sku": "652-ERJ-3EKF4701V", "rrf": 0.987 },
+        { "sku": "652-ERJ-PA3F4701V", "rrf": 0.612 },
+        { "sku": "71-CRCW06034K70FKEA", "rrf": 0.554 },
+        { "sku": "603-RC0603FR-074K7L", "rrf": 0.501 },
+        { "sku": "652-ERJ-3GEYJ472V", "rrf": 0.388 }
+      ]
+    },
+    "ranked": {
+      "response": { "top1_index": 0, "rationale": "Exact MPN match: 4.7kΩ 1% 0603 thick film resistor; in stock; RoHS compliant; lifecycle Active." },
+      "top1_sku": "652-ERJ-3EKF4701V"
+    },
+    "confidence": {
+      "score": 0.94,
+      "band": "High",
+      "signals": { "top1_minus_top2": 0.32, "attribute_match_pct": 1.00, "lexical_score": 1.00, "semantic_score": 0.91 }
+    },
+    "enriched": {
+      "unit_price_1k": "$0.024",
+      "stock": "12,450",
+      "lead_time": "in_stock",
+      "rohs": "yes",
+      "lifecycle": "active"
+    },
+    "assembled": {
+      "top1": { "sku": "652-ERJ-3EKF4701V", "confidence": 0.94 },
+      "alternates": [
+        { "sku": "652-ERJ-PA3F4701V", "confidence": 0.71 },
+        { "sku": "71-CRCW06034K70FKEA", "confidence": 0.66 },
+        { "sku": "603-RC0603FR-074K7L", "confidence": 0.61 }
+      ],
+      "audit": {
+        "pipeline_version": "1.2.0",
+        "parser_version": "b2_v1",
+        "parser_route": "rules",
+        "normalizer_version": "b3_v0",
+        "ranker_version": "b5_v0",
+        "prompt_version": "rank_v1",
+        "catalog_snapshot_id": "2026-05-04",
+        "calibrator_version": "b6_v0"
+      }
+    }
+  },
+  "catalog": {
+    "fields": [
+      ["mouser_part_number", "string"],
+      ["manufacturer_part_number", "string"],
+      ["manufacturer", "string"],
+      ["description", "text"],
+      ["package", "string"],
+      ["lifecycle_status", "enum"],
+      ["rohs_compliant", "bool"],
+      ["unit_price", "decimal"],
+      ["availability", "int"],
+      ["embedding", "vector(1024)"],
+      ["mouser_possible_replacement", "string"],
+      ["mouser_rohs_replacement", "string"]
+    ],
+    "rowCount": "10,247 SKUs in mock catalog · 50,000+ in real Mouser catalog (forecast)",
+    "embedding": {
+      "model": "voyage-4-large",
+      "dim": 1024,
+      "sourceText": "mpn | manufacturer | description | package",
+      "idempotency": "hash includes model identifier"
+    }
+  },
+  "eval": {
+    "fieldAccuracy": [
+      { "field": "MPN", "value": 89 },
+      { "field": "Manufacturer", "value": 89 },
+      { "field": "Package", "value": 72 }
+    ],
+    "commitProgression": [
+      { "commit": "a3f9c", "accuracy": 76 },
+      { "commit": "b1e02", "accuracy": 83 },
+      { "commit": "c7d44", "accuracy": 89 }
+    ],
+    "ops": {
+      "latency": "parse p50/p95/p99: 120ms / 450ms / 600ms",
+      "cost": "$0.035 per 51-line test BOM",
+      "tests": "149 unit tests · 1 e2e"
+    },
+    "labels": "v0 labels generated by Sonnet 4.6 + GPT-5 two-model agreement vote · disagreements flagged for human review · 51-line test BOM · awaiting v1 from Mouser senior application engineers"
+  }
+}
