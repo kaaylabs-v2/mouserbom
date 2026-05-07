@@ -742,6 +742,119 @@ export default function Architecture() {
           </div>
         </section>
 
+        {/* Section 7 — Deployment & Security */}
+        <section id="deploy" className="scroll-mt-20 mt-32">
+          <Eyebrow>Section 07 · Where it lives</Eyebrow>
+          <h2 className="text-3xl mt-2 mb-2">Where it lives: deployment & security</h2>
+          <p className="text-muted-foreground max-w-2xl mb-8">
+            How a BOM upload flows through corporate controls into Claude on Azure, with explicit deny-list.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 relative">
+            {deployColumns.map((col, ci) => (
+              <div key={col.id} className={`rounded-xl border ${col.tone} p-4`}>
+                <div className="mb-3">
+                  <div className="text-[10px] mono uppercase tracking-[0.18em] text-muted-foreground">
+                    {col.header}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {col.cards.map((c, i) => {
+                    const accent =
+                      (c as any).accent === "rose"
+                        ? "border-rose-500/70"
+                        : (c as any).accent === "emerald"
+                        ? "border-emerald-500/70"
+                        : col.cardBorder || "border-border";
+                    return (
+                      <div
+                        key={i}
+                        className={`relative rounded-lg border ${accent} bg-card p-3 transition-all hover:-translate-y-0.5 hover:shadow-sm`}
+                      >
+                        {col.blocked && (
+                          <XCircle className="h-3.5 w-3.5 text-rose-500 absolute top-2 right-2" />
+                        )}
+                        <div className="text-xs font-medium pr-5">{c.title}</div>
+                        <div className="text-[11px] text-muted-foreground mt-1 whitespace-pre-line leading-relaxed">
+                          {c.sub}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Flow labels */}
+          <div className="hidden lg:grid grid-cols-4 gap-4 mt-3 text-[10px] mono uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="text-right pr-2 flex items-center justify-end gap-1">
+              Filtered Request <ArrowRight className="h-3 w-3" />
+            </div>
+            <div className="text-right pr-2 flex items-center justify-end gap-1">
+              Encrypted Private Endpoint <ArrowRight className="h-3 w-3" />
+            </div>
+            <div className="text-right pr-2 flex items-center justify-end gap-1 text-rose-500">
+              <XCircle className="h-3 w-3" /> No flow permitted
+            </div>
+            <div />
+          </div>
+          <div className="hidden lg:grid grid-cols-4 gap-4 mt-1 text-[10px] mono uppercase tracking-[0.18em] text-muted-foreground">
+            <div />
+            <div className="text-left pl-2 flex items-center gap-1">
+              <ArrowRight className="h-3 w-3 rotate-180" /> Scanned Response
+            </div>
+            <div />
+            <div />
+          </div>
+
+          {/* Open questions */}
+          <div className="mt-8 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-5">
+            <div className="text-amber-900 dark:text-amber-200">
+              <Eyebrow>Open questions</Eyebrow>
+              <h3 className="text-sm font-semibold mt-2 mb-3">
+                Three deployment-time questions still being resolved with infrastructure team.
+              </h3>
+              <div className="space-y-3 text-xs leading-relaxed">
+                <p>
+                  <span className="font-semibold">OpenAI dependency in the synthetic labeler.</span>{" "}
+                  The BIE's eval-label generation uses GPT-5 + Sonnet 4.6 two-model agreement.
+                  Recommended resolution: run label generation offline as a build-time process
+                  outside the production VNet — labels flow in as a static dataset, OpenAI is never
+                  called at runtime.
+                </p>
+                <p>
+                  <span className="font-semibold">Direct Anthropic API endpoint.</span> Current code
+                  points at api.anthropic.com. Switching to Claude on Azure Marketplace endpoint:
+                  half-day of work, identical models, must land before B5 ranker ships.
+                </p>
+                <p>
+                  <span className="font-semibold">Voyage AI for semantic embeddings.</span> Three
+                  resolution paths under discussion: private-endpoint extension of Column 3,
+                  runtime-call elimination via aggressive caching, or replacement with an
+                  Azure-allowed embedding model.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Application tier */}
+          <div className="mt-4 rounded-xl border border-border bg-slate-100 dark:bg-slate-900/40 p-5">
+            <Eyebrow>Coming additions: the BIE application tier</Eyebrow>
+            <p className="text-xs leading-relaxed mt-2 text-muted-foreground">
+              This diagram covers AI consumption — how Claude is called from inside the corporate
+              VNet. The BIE application itself (FastAPI backend, Postgres + pgvector database,
+              React frontend, eval harness) requires a parallel application tier inside the VNet
+              using Azure App Service or AKS, Azure Database for PostgreSQL with pgvector enabled,
+              and Azure Static Web Apps. To be added in a follow-up infrastructure design pass.
+            </p>
+          </div>
+
+          <p className="mt-4 text-[11px] italic text-muted-foreground">
+            Diagram source: Mouser infrastructure team proposal · Last updated: {today}.
+          </p>
+        </section>
+
         <footer className="mt-24 pt-8 border-t border-border text-center">
           <p className="text-xs text-muted-foreground">Mouser BOM Intelligence Engine · POC build · Updated: {today}</p>
         </footer>
