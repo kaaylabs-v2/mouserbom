@@ -1,256 +1,686 @@
-import { useState } from "react";
-import { ChevronRight, Database, Activity, ShieldCheck, Gauge } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Database,
+  ShieldCheck,
+  Gauge,
+  FileSearch,
+  Activity,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+import data from "@/config/architecture-data.json";
 
 type StageType = "llm" | "ml" | "det";
 
-type Stage = {
-  id: string;
-  n: number;
-  name: string;
-  type: StageType;
-  job: string;
-  status: string;
-  accuracy: string;
-  tech: string[];
-  examples: { input: string; output: string; note?: string }[];
+const typeMeta: Record<
+  StageType,
+  { label: string; chip: string; ring: string; dot: string; soft: string }
+> = {
+  llm: {
+    label: "LLM",
+    chip: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40",
+    ring: "border-amber-400/60",
+    dot: "bg-amber-500",
+    soft: "bg-amber-50 dark:bg-amber-500/5",
+  },
+  ml: {
+    label: "ML",
+    chip: "bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/40",
+    ring: "border-violet-400/60",
+    dot: "bg-violet-500",
+    soft: "bg-violet-50 dark:bg-violet-500/5",
+  },
+  det: {
+    label: "Deterministic",
+    chip: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/40",
+    ring: "border-blue-400/60",
+    dot: "bg-blue-500",
+    soft: "bg-blue-50 dark:bg-blue-500/5",
+  },
 };
 
-const stages: Stage[] = [
-  {
-    id: "ingest", n: 1, name: "Ingest", type: "det",
-    job: "Accept any BOM file (XLSX, CSV, PDF). Detect format, sheets, and encoding. Stream into a uniform row buffer.",
-    status: "Stable", accuracy: "100% format coverage on test corpus (n=842)",
-    tech: ["SheetJS", "pdfplumber", "MIME sniffing", "Deterministic file router"],
-    examples: [
-      { input: "messy_bom_v3.xlsx · 3 sheets · merged headers", output: "Uniform row buffer · 412 rows · sheet=BOM_R3", note: "Auto-selects the densest sheet" },
-      { input: "altium_export.csv · UTF-16 LE · semicolon-delimited", output: "212 rows · encoding=utf-16le · delim=';'", note: "Encoding sniffed from BOM marker" },
-      { input: "ProductionBOM.pdf · 4-page table, scanned", output: "187 rows extracted · OCR fallback applied to p.3", note: "Falls back to OCR per-page when text layer is missing" },
-    ],
-  },
-  {
-    id: "parse", n: 2, name: "Parse", type: "llm",
-    job: "Identify which columns are MPN, manufacturer, description, qty, reference designator — even when headers are missing, multilingual, or merged.",
-    status: "LLM-assisted",
-    accuracy: "98.4% column-role F1 across 1,200 customer headers",
-    tech: ["Anthropic Claude Haiku", "Few-shot column-role prompts", "Rules-based fallback extractor"],
-    examples: [
-      { input: "['Part #', 'Vendor', 'Desc.', 'Qty/board', 'RefDes']", output: "{ mpn:'Part #', mfr:'Vendor', desc:'Desc.', qty:'Qty/board', ref:'RefDes' }" },
-      { input: "['Artikelnummer', 'Hersteller', 'Bezeichnung', 'Menge']  (German)", output: "{ mpn:'Artikelnummer', mfr:'Hersteller', desc:'Bezeichnung', qty:'Menge' }", note: "Multilingual header recognition" },
-      { input: "Headerless rows beginning 'C1,C2 | 100nF 0603 X7R | 14'", output: "{ ref:'C1,C2', desc:'100nF 0603 X7R', qty:14 }  · header inferred", note: "No header row → role inference from value patterns" },
-    ],
-  },
-  {
-    id: "normalize", n: 3, name: "Normalize", type: "det",
-    job: "Canonicalize values: strip packaging suffixes, unify units, fold whitespace, expand abbreviations (10K → 10 kΩ).",
-    status: "Stable", accuracy: "99.7% canonicalization match vs gold set",
-    tech: ["Regex grammars", "Unit conversion tables", "Manufacturer alias map"],
-    examples: [
-      { input: "'TI  LM358DR2G   (SOIC-8)'", output: "mfr=Texas Instruments · mpn=LM358DR2G · pkg=SOIC-8", note: "Alias 'TI' → 'Texas Instruments'" },
-      { input: "'10K 0805 1%'", output: "value=10 kΩ · pkg=0805 · tol=±1%" },
-      { input: "'4u7 25V X5R 0402'", output: "cap=4.7 µF · v=25 V · diel=X5R · pkg=0402", note: "European decimal notation expanded" },
-      { input: "'CAP CER 0.1UF 50V X7R 0603 -RC'", output: "cap=0.1 µF · v=50 V · diel=X7R · pkg=0603", note: "Packaging suffix '-RC' stripped" },
-    ],
-  },
-  {
-    id: "retrieve", n: 4, name: "Retrieve", type: "ml",
-    job: "Pull a constrained candidate set of real Mouser SKUs for each line using hybrid lexical + vector search over the catalog.",
-    status: "Production",
-    accuracy: "Recall@20 = 99.1% · median 14 candidates/line",
-    tech: ["BM25 (OpenSearch)", "bge-large-en embeddings", "pgvector ANN", "Catalog-bounded retrieval"],
-    examples: [
-      { input: "LM358DR2G · op-amp · SOIC-8", output: "[595-LM358DR2G, 595-LM358ADR, 863-NCV20034DR2G, … 17 more]", note: "Lexical hit on exact MPN dominates" },
-      { input: "'10 kΩ 0805 ±1% thick film'", output: "[652-CR0805FX-1002ELF, 71-CRCW080510K0FKEA, 603-RC0805FR-0710KL, … 22 more]", note: "Vector recall — no exact MPN given" },
-      { input: "'0.1µF 50V X7R 0603'", output: "[81-GRM188R71H104KA93D, 810-CGA3E2X7R1H104K, 77-VJ0603Y104KXJPBC, … 28 more]", note: "Generic part — broad candidate set" },
-    ],
-  },
-  {
-    id: "rank", n: 5, name: "Rank", type: "llm",
-    job: "Score each candidate against the normalized line. The LLM may only choose from the retrieved set — it cannot invent a SKU.",
-    status: "LLM-assisted",
-    accuracy: "Top-1 match accuracy 96.2% on labeled set (n=4,318)",
-    tech: ["Claude Haiku (constrained JSON)", "Attribute-match feature vector", "Catalog-id whitelist enforcement"],
-    examples: [
-      { input: "20 candidates · target: LM358DR2G / SOIC-8 / TI", output: "595-LM358DR2G · 0.94 · 'exact MPN + pkg + mfr'" },
-      { input: "25 candidates · target: 10 kΩ 0805 ±1% (no MPN)", output: "71-CRCW080510K0FKEA · 0.81 · 'attr-exact, preferred mfr'", note: "Tie-breaks on substitution policy" },
-      { input: "Hallucination attempt: LLM proposes '595-FAKE-999'", output: "REJECTED · whitelist violation · falls back to next valid candidate", note: "Catalog-id guard prevents hallucinated SKUs" },
-    ],
-  },
-  {
-    id: "confidence", n: 6, name: "Confidence", type: "ml",
-    job: "Assign a calibrated probability that the top pick is correct. This is a separate model trained on historical accept/reject signals — not the LLM grading itself.",
-    status: "Calibrated",
-    accuracy: "ECE = 0.024 · Brier = 0.061",
-    tech: ["Gradient-boosted classifier", "Isotonic calibration", "Features: rank gap, attribute coverage, retrieval score"],
-    examples: [
-      { input: "score=0.94 · rank-gap=0.31 · attr-coverage=1.00", output: "P=0.97 → HIGH", note: "Auto-acceptable for most policies" },
-      { input: "score=0.71 · rank-gap=0.04 · attr-coverage=0.83", output: "P=0.58 → MEDIUM", note: "Close runner-up triggers review" },
-      { input: "score=0.42 · rank-gap=0.01 · attr-coverage=0.50", output: "P=0.19 → LOW · flag for human", note: "Routed to procurement engineer queue" },
-    ],
-  },
-  {
-    id: "enrich", n: 7, name: "Enrich", type: "det",
-    job: "Attach live Mouser catalog data: price tiers, stock, lifecycle, datasheet URLs, RoHS, lead time.",
-    status: "Stable", accuracy: "Catalog SLA: <1.2s p95 per line",
-    tech: ["Mouser Catalog API", "Per-region pricing tables", "Lifecycle service"],
-    examples: [
-      { input: "595-LM358DR2G", output: "$0.42 @1k · 18,420 in stock · Active · RoHS · DS link" },
-      { input: "863-NCV20034DR2G  (NRND)", output: "$0.61 @1k · 2,140 in stock · NRND · last-buy 2026-09-30", note: "Lifecycle flag surfaces to UI" },
-      { input: "71-CRCW080510K0FKEA · qty=4,500", output: "tier price = $0.0048 · 312k stock · 6-wk lead on backorder" },
-    ],
-  },
-  {
-    id: "assemble", n: 8, name: "Assemble", type: "det",
-    job: "Compose the final results payload: row decisions, alternates, audit trail, export shapes (CSV / XLSX / JSON / API).",
-    status: "Stable", accuracy: "Schema-validated · 0 export defects in last 30d",
-    tech: ["Zod schemas", "Deterministic serializer", "Audit log writer"],
-    examples: [
-      { input: "412 per-line decisions + signals", output: "results.json · results.xlsx · audit.jsonl" },
-      { input: "Same job, API caller", output: "POST /v1/jobs/{id}/results → 200 · 412 rows · ETag set", note: "Idempotent · cached by job hash" },
-      { input: "Row with rejected pick + accepted alternate", output: "audit.jsonl appended: {action:'replace', from:'…', to:'…', user:'ac@mouser'}" },
-    ],
-  },
+const sections = [
+  { id: "overview", label: "Overview" },
+  { id: "pipeline", label: "Pipeline" },
+  { id: "walkthrough", label: "Walkthrough" },
+  { id: "trust", label: "Trust" },
+  { id: "catalog", label: "Catalog" },
+  { id: "eval", label: "Eval" },
 ];
 
-const typeMeta: Record<StageType, { label: string; ring: string; chip: string; dot: string }> = {
-  llm: { label: "LLM", ring: "border-orange-500/40 hover:border-orange-500", chip: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30", dot: "bg-orange-500" },
-  ml:  { label: "ML",  ring: "border-purple-500/40 hover:border-purple-500", chip: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30", dot: "bg-purple-500" },
-  det: { label: "Deterministic", ring: "border-sky-500/40 hover:border-sky-500", chip: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30", dot: "bg-sky-500" },
-};
+function useReveal<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!ref.current) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            setShown(true);
+            io.disconnect();
+          }
+        });
+      },
+      { threshold: 0.25 }
+    );
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, []);
+  return { ref, shown };
+}
 
-export default function Architecture() {
-  const [activeId, setActiveId] = useState<string>("rank");
-  const active = stages.find(s => s.id === activeId)!;
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return <div className="eyebrow text-muted-foreground">{children}</div>;
+}
 
+function StageChip({ s, onClick }: { s: any; onClick?: () => void }) {
+  const m = typeMeta[s.type as StageType];
   return (
-    <div className="p-8 max-w-[1500px] mx-auto">
-      <div className="mb-8">
-        <div className="eyebrow text-muted-foreground mb-2">SYSTEM ARCHITECTURE</div>
-        <h1 className="text-3xl mb-2">How the BOM Intelligence Engine works</h1>
-        <p className="text-muted-foreground max-w-3xl">An eight-stage pipeline. LLMs do the linguistic work. ML calibrates confidence. Deterministic code handles everything that must be exact. Click any stage to inspect it.</p>
-      </div>
+    <button
+      onClick={onClick}
+      className={`group flex items-center gap-2 rounded-full border-2 px-3 py-1.5 ${m.ring} ${m.soft} transition-all hover:-translate-y-0.5 hover:shadow-sm focus-ring`}
+      title={s.name}
+    >
+      <span className={`mono text-[10px] text-muted-foreground`}>0{s.n}</span>
+      <span className="font-semibold text-xs">{s.name}</span>
+      <span className={`mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${m.chip}`}>{m.label}</span>
+    </button>
+  );
+}
 
-      {/* Legend */}
-      <div className="flex items-center gap-5 mb-6 text-sm">
-        {(["llm","ml","det"] as StageType[]).map(t => (
-          <div key={t} className="flex items-center gap-2">
-            <span className={`h-2.5 w-2.5 rounded-full ${typeMeta[t].dot}`} />
-            <span className="text-muted-foreground">{typeMeta[t].label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Catalog substrate */}
-      <div className="mb-3">
-        <div className="rounded-lg border border-border bg-surface-muted px-5 py-3 flex items-center gap-3">
-          <Database className="h-4 w-4 text-accent-cyan" />
-          <div className="eyebrow text-muted-foreground">MOUSER CATALOG · DATA SUBSTRATE</div>
-          <div className="text-sm text-muted-foreground">~1.2M active SKUs · pricing · stock · lifecycle · datasheets</div>
-          <div className="ml-auto mono text-xs text-muted-foreground">feeds → Stage 4 · Stage 7</div>
-        </div>
-        <div className="flex justify-around px-8 pt-1 pointer-events-none" aria-hidden>
-          <div className="h-5 border-l-2 border-dotted border-accent-cyan/50" style={{ marginLeft: "30%" }} />
-          <div className="h-5 border-l-2 border-dotted border-accent-cyan/50" style={{ marginLeft: "20%" }} />
-        </div>
-      </div>
-
-      {/* Pipeline */}
-      <div className="grid grid-cols-8 gap-2 mb-3">
-        {stages.map((s, i) => {
-          const meta = typeMeta[s.type];
-          const isActive = s.id === activeId;
-          return (
-            <div key={s.id} className="relative">
-              <button
-                onClick={() => setActiveId(s.id)}
-                className={`w-full text-left rounded-lg border-2 bg-card px-3 py-3 transition-all focus-ring ${meta.ring} ${isActive ? "ring-2 ring-ring shadow-md -translate-y-0.5" : "hover:-translate-y-0.5 hover:shadow-sm"}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="mono text-[10px] text-muted-foreground">STAGE {s.n}</span>
-                  <span className={`mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.chip}`}>{meta.label}</span>
-                </div>
-                <div className="font-semibold text-sm">{s.name}</div>
-                <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{s.job.split(".")[0]}.</div>
-              </button>
-              {i < stages.length - 1 && (
-                <ChevronRight className="hidden xl:block absolute -right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 z-10" />
-              )}
+function StageCard({ s }: { s: any }) {
+  const [open, setOpen] = useState(false);
+  const m = typeMeta[s.type as StageType];
+  return (
+    <div id={`stage-${s.id}`} className={`rounded-xl border ${m.ring} bg-card overflow-hidden`}>
+      <div className="grid grid-cols-12 gap-0">
+        {/* Left: number + name */}
+        <div className={`col-span-12 md:col-span-2 p-6 ${m.soft} border-r border-border flex md:flex-col items-baseline md:items-start gap-3`}>
+          <div className="mono text-5xl font-bold leading-none text-foreground/90">{String(s.n).padStart(2, "0")}</div>
+          <div>
+            <div className="text-xl font-semibold tracking-tight">{s.name}</div>
+            <div className="mt-1 inline-flex items-center gap-2">
+              <span className={`mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${m.chip}`}>{m.label}</span>
             </div>
-          );
-        })}
+          </div>
+        </div>
+
+        {/* Middle: description + bullets */}
+        <div className="col-span-12 md:col-span-7 p-6 border-r border-border">
+          <p className="text-sm leading-relaxed text-foreground/90">{s.summary}</p>
+          <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-2">
+            {s.bullets.map((b: string) => (
+              <li key={b} className="text-xs flex items-start gap-2">
+                <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${m.dot}`} />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Right: live status */}
+        <div className="col-span-12 md:col-span-3 p-6 bg-surface-muted/40">
+          <div className="flex items-center justify-between">
+            <Eyebrow>Status</Eyebrow>
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              {s.status}
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex justify-between text-xs"><span className="text-muted-foreground">Accuracy</span><span className="mono">{s.accuracy}</span></div>
+            <div className="flex justify-between text-xs"><span className="text-muted-foreground">Latency</span><span className="mono">{s.latency}</span></div>
+            <div className="flex justify-between text-xs"><span className="text-muted-foreground">Cost</span><span className="mono">{s.cost}</span></div>
+          </div>
+        </div>
       </div>
 
-      {/* Guardrail callouts */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <div className="eyebrow text-emerald-700 dark:text-emerald-400">GUARDRAIL · STAGES 4–5</div>
+      {/* Expandable */}
+      <div className="border-t border-border">
+        <button
+          onClick={() => setOpen(!open)}
+          className="w-full px-6 py-3 flex items-center justify-between text-xs font-medium text-muted-foreground hover:bg-surface-muted/60 transition-colors focus-ring"
+        >
+          <span className="inline-flex items-center gap-2"><FileSearch className="h-3.5 w-3.5" /> Show example transformation</span>
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        {open && (
+          <div className="px-6 pb-6 pt-2">
+            {s.id === "retrieve" ? <RetrieveExpanded s={s} /> :
+             s.id === "rank" ? <RankExpanded /> :
+             s.id === "confidence" ? <ConfidenceExpanded /> :
+             <ExampleIO input={s.example.input} output={s.example.output} />}
           </div>
-          <div className="font-semibold text-sm mb-1">No SKU hallucinations</div>
-          <p className="text-sm text-muted-foreground">Stage 4 retrieves a bounded candidate set from the real Mouser catalog. Stage 5's LLM must select from that set — its output is validated against the catalog-id whitelist before it leaves the ranker. A SKU that does not exist cannot be returned.</p>
-        </div>
-        <div className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Gauge className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            <div className="eyebrow text-purple-700 dark:text-purple-400">GUARDRAIL · STAGE 6</div>
-          </div>
-          <div className="font-semibold text-sm mb-1">Calibrated confidence</div>
-          <p className="text-sm text-muted-foreground">Confidence is produced by a separate calibrated classifier trained on historical accept/reject signals. The LLM is never asked to grade itself. A 0.95 score means 95% of similarly-scored picks were accepted by procurement engineers.</p>
-        </div>
+        )}
       </div>
+    </div>
+  );
+}
 
-      {/* Eval harness */}
-      <div className="rounded-lg border border-border bg-surface-muted px-5 py-3 mb-8 flex items-center gap-3">
-        <Activity className="h-4 w-4 text-accent" />
-        <div className="eyebrow text-muted-foreground">EVAL HARNESS · MEASUREMENT LAYER</div>
-        <div className="text-sm text-muted-foreground">Observes every stage · gold-set regression · per-stage precision/recall · drift alerts</div>
-        <div className="ml-auto mono text-xs text-muted-foreground">last run: 6h ago · 0 regressions</div>
+function ExampleIO({ input, output }: { input: string; output: string }) {
+  return (
+    <div className="grid md:grid-cols-2 gap-3">
+      <div className="rounded-md border border-border bg-surface-muted/50 p-3">
+        <Eyebrow>Input</Eyebrow>
+        <div className="mono text-xs mt-2 break-words">{input}</div>
       </div>
+      <div className="rounded-md border border-border bg-surface-muted/50 p-3">
+        <Eyebrow>Output</Eyebrow>
+        <div className="mono text-xs mt-2 break-words">{output}</div>
+      </div>
+    </div>
+  );
+}
 
-      {/* Detail panel */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center gap-3">
-          <span className="mono text-xs text-muted-foreground">STAGE {active.n}</span>
-          <h2 className="text-xl font-semibold">{active.name}</h2>
-          <span className={`mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border ${typeMeta[active.type].chip}`}>{typeMeta[active.type].label}</span>
-          <span className="ml-auto text-sm text-muted-foreground flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-success" /> {active.status}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-0">
-          <div className="p-6 border-r border-border">
-            <div className="eyebrow text-muted-foreground mb-2">JOB</div>
-            <p className="text-sm leading-relaxed">{active.job}</p>
-            <div className="eyebrow text-muted-foreground mt-5 mb-2">CURRENT STATUS</div>
-            <p className="mono text-sm">{active.accuracy}</p>
-          </div>
-          <div className="p-6 border-r border-border">
-            <div className="eyebrow text-muted-foreground mb-3">KEY TECHNOLOGIES</div>
-            <ul className="space-y-2">
-              {active.tech.map(t => (
-                <li key={t} className="text-sm flex items-start gap-2">
-                  <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${typeMeta[active.type].dot}`} />
-                  <span>{t}</span>
-                </li>
+function RetrieveExpanded({ s }: { s: any }) {
+  return (
+    <div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {s.lanes.map((lane: any) => (
+          <div key={lane.name} className="rounded-md border border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/5 p-3">
+            <div className="text-xs font-semibold">{lane.name}</div>
+            <div className="mono text-[10px] text-muted-foreground mt-0.5">{lane.tech}</div>
+            <ul className="mt-2 space-y-1">
+              {lane.candidates.map((c: string) => (
+                <li key={c} className="mono text-[10px] truncate">{c}</li>
               ))}
             </ul>
           </div>
-          <div className="p-6">
-            <div className="eyebrow text-muted-foreground mb-3">EXAMPLE TRANSFORMATIONS</div>
-            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-              {active.examples.map((ex, i) => (
-                <div key={i} className="rounded-md border border-border bg-surface-muted/50 p-3">
-                  <div className="mono text-[10px] uppercase text-muted-foreground mb-1">Input</div>
-                  <div className="mono text-xs break-words">{ex.input}</div>
-                  <div className="flex justify-center text-muted-foreground my-1"><ChevronRight className="h-3.5 w-3.5 rotate-90" /></div>
-                  <div className="mono text-[10px] uppercase text-muted-foreground mb-1">Output</div>
-                  <div className="mono text-xs break-words">{ex.output}</div>
-                  {ex.note && <div className="mt-2 text-[11px] text-muted-foreground italic">{ex.note}</div>}
+        ))}
+      </div>
+      <div className="flex justify-center my-3 text-muted-foreground">
+        <ChevronDown className="h-5 w-5" />
+      </div>
+      <div className="rounded-md border border-violet-400 dark:border-violet-500/60 bg-violet-100 dark:bg-violet-500/10 p-3 text-center">
+        <div className="text-xs font-semibold">Reciprocal Rank Fusion</div>
+        <div className="mono text-[10px] text-muted-foreground">combines lane scores into a single ranked list</div>
+      </div>
+      <div className="flex justify-center my-3 text-muted-foreground">
+        <ChevronDown className="h-5 w-5" />
+      </div>
+      <div className="rounded-md border border-border bg-surface-muted p-3">
+        <Eyebrow>Final candidate set (passed to ranker)</Eyebrow>
+        <div className="mono text-xs mt-2">5 SKUs, all from real Mouser catalog</div>
+      </div>
+    </div>
+  );
+}
+
+function RankExpanded() {
+  const candidates = [
+    "652-ERJ-3EKF4701V",
+    "652-ERJ-PA3F4701V",
+    "71-CRCW06034K70FKEA",
+    "603-RC0603FR-074K7L",
+    "652-ERJ-3GEYJ472V",
+  ];
+  return (
+    <div className="grid md:grid-cols-2 gap-3">
+      <div className="rounded-md border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/5 p-3">
+        <Eyebrow>Input to Claude Sonnet</Eyebrow>
+        <div className="mt-2 space-y-1">
+          {candidates.map((c, i) => (
+            <div key={c} className="flex items-center gap-2 text-xs">
+              <span className="mono text-[10px] text-muted-foreground w-5">{i}</span>
+              <span className="mono">{c}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-md border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/5 p-3">
+        <Eyebrow>Output (constrained JSON)</Eyebrow>
+        <pre className="mono text-xs mt-2 whitespace-pre-wrap">{`{
+  "index": 0,
+  "rationale": "Exact MPN match"
+}`}</pre>
+        <div className="mt-3 rounded border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/5 p-2 text-[11px] text-rose-800 dark:text-rose-300">
+          <ShieldCheck className="inline h-3.5 w-3.5 mr-1" />
+          If the model returns a SKU not in the candidate list, the response is rejected — not auto-corrected. Inventing parts is structurally impossible.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfidenceExpanded() {
+  return (
+    <div>
+      <div className="relative h-8 rounded-md overflow-hidden border border-border">
+        <div className="absolute inset-0 flex">
+          <div className="h-full" style={{ width: "40%", background: "hsl(0 0% 70% / 0.25)" }} />
+          <div className="h-full" style={{ width: "20%", background: "hsl(0 84% 60% / 0.25)" }} />
+          <div className="h-full" style={{ width: "25%", background: "hsl(38 92% 50% / 0.30)" }} />
+          <div className="h-full" style={{ width: "15%", background: "hsl(160 84% 39% / 0.30)" }} />
+        </div>
+        <div className="absolute inset-0 flex items-center text-[10px] mono text-foreground/80">
+          <span className="w-[40%] text-center">no_match &lt;0.4</span>
+          <span className="w-[20%] text-center">Low</span>
+          <span className="w-[25%] text-center">Medium</span>
+          <span className="w-[15%] text-center">High ≥0.85</span>
+        </div>
+      </div>
+      <div className="mt-4 grid md:grid-cols-2 gap-3">
+        <div className="rounded-md border border-border bg-surface-muted/50 p-3">
+          <Eyebrow>Signals (input to calibrator)</Eyebrow>
+          <ul className="mt-2 space-y-1 text-xs">
+            <li className="flex justify-between"><span>top1 − top2 margin</span><span className="mono">0.32</span></li>
+            <li className="flex justify-between"><span>attribute match %</span><span className="mono">100%</span></li>
+            <li className="flex justify-between"><span>lexical score</span><span className="mono">1.00</span></li>
+            <li className="flex justify-between"><span>semantic score</span><span className="mono">0.91</span></li>
+            <li className="flex justify-between"><span>policy penalty</span><span className="mono">0.00</span></li>
+          </ul>
+        </div>
+        <div className="rounded-md border border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/5 p-3">
+          <Eyebrow>Calibrated output</Eyebrow>
+          <div className="mt-2 mono text-2xl font-bold">0.94</div>
+          <div className="text-xs text-muted-foreground">Band: <span className="font-semibold text-emerald-700 dark:text-emerald-400">High</span></div>
+          <div className="mt-2 text-[11px] text-muted-foreground italic">Calibrator is trained on historical accept/reject signals. The LLM is never asked to grade itself.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────── Walkthrough ──────────── */
+
+function WalkStep({ n, title, children, type }: { n: number; title: string; children: React.ReactNode; type: StageType }) {
+  const { ref, shown } = useReveal<HTMLDivElement>();
+  const m = typeMeta[type];
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-700 ${shown ? "opacity-100 translate-y-0" : "opacity-30 translate-y-4"}`}
+    >
+      <div className={`rounded-xl border ${m.ring} bg-card overflow-hidden`}>
+        <div className={`px-5 py-3 ${m.soft} border-b border-border flex items-center gap-3`}>
+          <span className="mono text-xs text-muted-foreground">STAGE {n}</span>
+          <div className="font-semibold text-sm">{title}</div>
+          <span className={`ml-auto mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${m.chip}`}>{m.label}</span>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function KV({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 text-xs py-1 border-b border-dashed border-border last:border-0">
+      <span className="mono text-muted-foreground w-44 shrink-0">{k}</span>
+      <span className="mono break-all">{v}</span>
+    </div>
+  );
+}
+
+function Walkthrough() {
+  const w = data.walkthrough;
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg border border-slate-300 dark:border-border bg-slate-50 dark:bg-surface-muted px-4 py-3">
+        <Eyebrow>Input line (intentionally messy)</Eyebrow>
+        <div className="mono text-sm mt-2">R5-R7 | 4k7 | 0603 | 1% | ERJ-3EKF4701V | Panasonic</div>
+      </div>
+
+      <WalkStep n={1} title="Ingest — raw cells parsed from the file" type="det">
+        <div className="flex flex-wrap gap-2">
+          {w.raw.map((c) => (
+            <span key={c} className="mono text-xs px-2 py-1 rounded border border-border bg-surface-muted">{c}</span>
+          ))}
+        </div>
+      </WalkStep>
+
+      <WalkStep n={2} title="Parse — structured fields extracted" type="llm">
+        {Object.entries(w.parsed).map(([k, v]) => (
+          <KV key={k} k={k} v={JSON.stringify(v)} />
+        ))}
+      </WalkStep>
+
+      <WalkStep n={3} title="Normalize — manufacturer + values canonicalized" type="det">
+        <KV k="manufacturer" v={`"${w.normalized.manufacturer}"`} />
+        <KV k="value" v={`"${w.normalized.value}"`} />
+        <KV k="normalizer_version" v={`"${w.normalized.normalizer_version}"`} />
+        <div className="mt-3 text-[11px] text-muted-foreground italic">{w.normalized.note}</div>
+      </WalkStep>
+
+      <WalkStep n={4} title="Retrieve — four lanes converge to a candidate set" type="ml">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {w.retrieved.lanes.map((lane) => (
+            <div key={lane.name} className="rounded-md border border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/5 p-2">
+              <div className="text-[11px] font-semibold flex justify-between"><span>{lane.name}</span><span className="mono text-muted-foreground">{lane.score.toFixed(2)}</span></div>
+              <ul className="mt-1 space-y-0.5">
+                {lane.candidates.map((c) => <li key={c} className="mono text-[10px] truncate">{c}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center my-2 text-muted-foreground"><ChevronDown className="h-4 w-4" /></div>
+        <div className="rounded-md border border-border bg-surface-muted p-3">
+          <Eyebrow>Fused candidate set (RRF)</Eyebrow>
+          <ul className="mt-2 space-y-1">
+            {w.retrieved.fused.map((f, i) => (
+              <li key={f.sku} className="flex justify-between text-xs">
+                <span className="mono"><span className="text-muted-foreground mr-2">{i}</span>{f.sku}</span>
+                <span className="mono text-muted-foreground">rrf {f.rrf.toFixed(3)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </WalkStep>
+
+      <WalkStep n={5} title="Rank — Claude Sonnet returns an INDEX, not a SKU" type="llm">
+        <div className="rounded-md border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/5 p-3">
+          <Eyebrow>Ranker response</Eyebrow>
+          <pre className="mono text-xs mt-2 whitespace-pre-wrap">{JSON.stringify(w.ranked.response, null, 2)}</pre>
+        </div>
+        <div className="mt-3 rounded-md border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-500/5 p-3">
+          <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> <span className="text-xs font-semibold">Resolved top-1 SKU</span></div>
+          <div className="mono text-sm mt-1">{w.ranked.top1_sku}</div>
+        </div>
+      </WalkStep>
+
+      <WalkStep n={6} title="Confidence — calibrated probability + signals" type="ml">
+        <div className="flex items-baseline gap-3">
+          <div className="mono text-3xl font-bold">{w.confidence.score}</div>
+          <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40">{w.confidence.band}</span>
+        </div>
+        <div className="mt-3 grid sm:grid-cols-2 gap-x-6">
+          {Object.entries(w.confidence.signals).map(([k, v]) => (
+            <KV key={k} k={k} v={String(v)} />
+          ))}
+        </div>
+      </WalkStep>
+
+      <WalkStep n={7} title="Enrich — live catalog data attached" type="det">
+        {Object.entries(w.enriched).map(([k, v]) => <KV key={k} k={k} v={String(v)} />)}
+      </WalkStep>
+
+      <WalkStep n={8} title="Assemble — final recommendation + audit trail" type="det">
+        <div className="rounded-md border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-500/5 p-3">
+          <Eyebrow>Top-1</Eyebrow>
+          <div className="flex justify-between mt-1"><span className="mono text-sm">{w.assembled.top1.sku}</span><span className="mono text-xs">conf {w.assembled.top1.confidence}</span></div>
+        </div>
+        <div className="mt-3">
+          <Eyebrow>Alternates</Eyebrow>
+          <ul className="mt-2 space-y-1">
+            {w.assembled.alternates.map((a) => (
+              <li key={a.sku} className="flex justify-between text-xs"><span className="mono">{a.sku}</span><span className="mono text-muted-foreground">conf {a.confidence}</span></li>
+            ))}
+          </ul>
+        </div>
+        <div className="mt-4">
+          <Eyebrow>Audit trail</Eyebrow>
+          <div className="mt-2 grid sm:grid-cols-2 gap-x-6">
+            {Object.entries(w.assembled.audit).map(([k, v]) => <KV key={k} k={k} v={String(v)} />)}
+          </div>
+        </div>
+      </WalkStep>
+    </div>
+  );
+}
+
+/* ──────────── Trust ──────────── */
+
+function TrustCallout({ title, children, icon: Icon }: { title: string; children: React.ReactNode; icon: any }) {
+  return (
+    <div className="rounded-xl border-2 border-rose-300 dark:border-rose-500/40 bg-rose-50/60 dark:bg-rose-500/5 p-5">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+        <div className="eyebrow text-rose-700 dark:text-rose-300">Guardrail</div>
+      </div>
+      <div className="font-semibold mb-2">{title}</div>
+      <div className="text-sm text-foreground/85 space-y-3">{children}</div>
+    </div>
+  );
+}
+
+/* ──────────── Eval ──────────── */
+
+function AccuracyBars() {
+  const { ref, shown } = useReveal<HTMLDivElement>();
+  return (
+    <div ref={ref} className="space-y-3">
+      {data.eval.fieldAccuracy.map((f) => (
+        <div key={f.field}>
+          <div className="flex justify-between text-xs mb-1"><span>{f.field}</span><span className="mono">{f.value}%</span></div>
+          <div className="h-2 rounded bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-1000 ease-out"
+              style={{ width: shown ? `${f.value}%` : "0%" }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CommitChart() {
+  const max = 100;
+  const pts = data.eval.commitProgression;
+  const w = 280, h = 100, pad = 20;
+  const stepX = (w - pad * 2) / (pts.length - 1);
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${pad + i * stepX} ${h - pad - (p.accuracy / max) * (h - pad * 2)}`).join(" ");
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="hsl(var(--border))" />
+        <path d={path} fill="none" stroke="hsl(var(--primary))" strokeWidth="2" />
+        {pts.map((p, i) => (
+          <g key={p.commit}>
+            <circle cx={pad + i * stepX} cy={h - pad - (p.accuracy / max) * (h - pad * 2)} r="3" fill="hsl(var(--primary))" />
+            <text x={pad + i * stepX} y={h - 4} textAnchor="middle" fontSize="8" fill="hsl(var(--muted-foreground))" className="mono">{p.commit}</text>
+            <text x={pad + i * stepX} y={h - pad - (p.accuracy / max) * (h - pad * 2) - 6} textAnchor="middle" fontSize="8" fill="hsl(var(--foreground))" className="mono">{p.accuracy}%</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/* ──────────── Page ──────────── */
+
+export default function Architecture() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="min-h-screen">
+      {/* Sticky nav */}
+      <nav className="sticky top-0 z-40 backdrop-blur bg-background/80 border-b border-border">
+        <div className="max-w-[1200px] mx-auto px-6 h-12 flex items-center gap-6">
+          <span className="eyebrow text-muted-foreground">Architecture</span>
+          <div className="hidden md:flex items-center gap-5 text-xs">
+            {sections.map((s) => (
+              <a key={s.id} href={`#${s.id}`} className="text-muted-foreground hover:text-foreground transition-colors">
+                {s.label}
+              </a>
+            ))}
+          </div>
+          <Link to="/" className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+            Back to demo <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </nav>
+
+      <div className="max-w-[1200px] mx-auto px-6 py-16">
+        {/* Section 1 — Hero */}
+        <section id="overview" className="scroll-mt-20">
+          <Eyebrow>System architecture</Eyebrow>
+          <h1 className="text-4xl md:text-5xl mt-3 max-w-4xl leading-[1.1]">
+            From a customer's messy BOM to confidence-scored Mouser SKUs in under 30 seconds — with the AI structurally barred from inventing parts.
+          </h1>
+
+          <div className="grid md:grid-cols-3 gap-4 mt-10">
+            {[
+              { v: data.metrics.extractionAccuracy, l: data.metrics.extractionLabel },
+              { v: data.metrics.costPerBom, l: data.metrics.costLabel },
+              { v: "Audit", l: data.metrics.auditLabel },
+            ].map((m) => (
+              <div key={m.l} className="rounded-xl border border-border bg-card p-5">
+                <div className="mono text-3xl font-bold">{m.v}</div>
+                <div className="text-xs text-muted-foreground mt-1">{m.l}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10">
+            <Eyebrow>The pipeline at a glance</Eyebrow>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {data.stages.map((s, i) => (
+                <div key={s.id} className="flex items-center gap-2">
+                  <a href={`#stage-${s.id}`}><StageChip s={s} /></a>
+                  {i < data.stages.length - 1 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60" />}
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* Section 2 — Pipeline */}
+        <section id="pipeline" className="scroll-mt-20 mt-32">
+          <Eyebrow>Section 02 · The pipeline</Eyebrow>
+          <h2 className="text-3xl mt-2 mb-2">Eight stages, each with one job</h2>
+          <p className="text-muted-foreground max-w-2xl mb-8">
+            LLMs do the linguistic work. ML calibrates confidence. Deterministic code handles everything that must be exact. Open any stage to see the example transformation.
+          </p>
+          <div className="space-y-4">
+            {data.stages.map((s) => <StageCard key={s.id} s={s} />)}
+          </div>
+        </section>
+
+        {/* Section 3 — Walkthrough */}
+        <section id="walkthrough" className="scroll-mt-20 mt-32">
+          <Eyebrow>Section 03 · Follow this line through the pipeline</Eyebrow>
+          <h2 className="text-3xl mt-2 mb-2">One messy line, eight transformations</h2>
+          <p className="text-muted-foreground max-w-2xl mb-8">
+            Scroll down. The line transforms in place — each stage's output reveals as it scrolls into view.
+          </p>
+          <Walkthrough />
+        </section>
+
+        {/* Section 4 — Trust */}
+        <section id="trust" className="scroll-mt-20 mt-32">
+          <Eyebrow>Section 04 · Trust mechanisms</Eyebrow>
+          <h2 className="text-3xl mt-2 mb-2">The three guardrails</h2>
+          <p className="text-muted-foreground max-w-2xl mb-8">
+            These are not features — they are structural constraints on what the system can do.
+          </p>
+          <div className="grid lg:grid-cols-3 gap-4">
+            <TrustCallout title="No SKU hallucinations" icon={ShieldCheck}>
+              <p>The ranker (Stage 5) receives a fixed candidate list and must return an index, not a free-form SKU. Off-list responses are rejected, not auto-corrected.</p>
+              <div className="rounded border border-border bg-background p-2 mono text-[11px]">
+                <div className="flex items-center gap-2"><XCircle className="h-3.5 w-3.5 text-rose-600" /> {`{"sku":"FAKE-123-NOPB"}`}</div>
+                <div className="text-muted-foreground ml-5">→ rejected · fallback to lexical scoring with reduced confidence</div>
+              </div>
+            </TrustCallout>
+            <TrustCallout title="Calibrated confidence" icon={Gauge}>
+              <p>A score of 0.9 means we expect to be right roughly 9 times out of 10 on lines like this — measured against ground truth, not LLM self-opinion.</p>
+              <div className="space-y-1 text-[11px] mono">
+                <div className="flex items-center gap-2"><span className="h-2 w-12 rounded bg-emerald-500" /> ≥ 0.85 · High</div>
+                <div className="flex items-center gap-2"><span className="h-2 w-12 rounded bg-amber-500" /> 0.6–0.85 · Medium</div>
+                <div className="flex items-center gap-2"><span className="h-2 w-12 rounded bg-rose-500" /> &lt; 0.6 · Low</div>
+                <div className="flex items-center gap-2"><span className="h-2 w-12 rounded bg-muted-foreground/40" /> &lt; 0.4 · no_match</div>
+              </div>
+            </TrustCallout>
+            <TrustCallout title="Every line is audit-traced" icon={FileSearch}>
+              <p>When something goes wrong six months from now, we replay the exact path that produced the answer.</p>
+              <div className="rounded border border-border bg-background p-2 mono text-[10px] space-y-0.5">
+                {Object.entries(data.walkthrough.assembled.audit).slice(0, 6).map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2"><span className="text-muted-foreground">{k}</span><span>{String(v)}</span></div>
+                ))}
+              </div>
+            </TrustCallout>
+          </div>
+        </section>
+
+        {/* Section 5 — Catalog */}
+        <section id="catalog" className="scroll-mt-20 mt-32">
+          <Eyebrow>Section 05 · Catalog substrate</Eyebrow>
+          <h2 className="text-3xl mt-2 mb-2">The Mouser Catalog as a data layer</h2>
+          <p className="text-muted-foreground max-w-2xl mb-8">
+            Not a labeled box — a real, indexed table feeding retrieval and enrichment.
+          </p>
+          <div className="rounded-xl border-2 border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-500/5 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Database className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
+              <div className="eyebrow text-emerald-800 dark:text-emerald-300">Mouser Catalog</div>
+              <div className="ml-auto mono text-xs text-muted-foreground">{data.catalog.rowCount}</div>
+            </div>
+            <div className="grid md:grid-cols-3 gap-5">
+              <div className="md:col-span-2">
+                <Eyebrow>Schema</Eyebrow>
+                <div className="mt-2 grid grid-cols-2 gap-x-6">
+                  {data.catalog.fields.map(([f, t]) => (
+                    <div key={f} className="flex justify-between text-xs py-1 border-b border-dashed border-border">
+                      <span className="mono">{f}</span>
+                      <span className="mono text-muted-foreground">{t}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Eyebrow>Embedding pipeline</Eyebrow>
+                <div className="mt-2 rounded border border-border bg-background p-3 text-xs space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">model</span><span className="mono">{data.catalog.embedding.model}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">dim</span><span className="mono">{data.catalog.embedding.dim}</span></div>
+                  <div className="text-muted-foreground mt-2">source-text</div>
+                  <div className="mono text-[11px] break-words">{data.catalog.embedding.sourceText}</div>
+                  <div className="text-muted-foreground mt-2">idempotency</div>
+                  <div className="mono text-[11px]">{data.catalog.embedding.idempotency}</div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 grid sm:grid-cols-2 gap-3">
+              <a href="#stage-retrieve" className="rounded-md border border-emerald-300 dark:border-emerald-500/40 bg-background/60 p-3 flex items-center gap-2 text-xs hover:shadow-sm transition-shadow">
+                <ArrowRight className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
+                <span><span className="font-semibold">→ Stage 4 · Retrieve</span> · candidates + embeddings</span>
+              </a>
+              <a href="#stage-enrich" className="rounded-md border border-emerald-300 dark:border-emerald-500/40 bg-background/60 p-3 flex items-center gap-2 text-xs hover:shadow-sm transition-shadow">
+                <ArrowRight className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
+                <span><span className="font-semibold">→ Stage 7 · Enrich</span> · pricing + lifecycle</span>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 6 — Eval */}
+        <section id="eval" className="scroll-mt-20 mt-32">
+          <Eyebrow>Section 06 · How we know it's working</Eyebrow>
+          <h2 className="text-3xl mt-2 mb-2">The eval harness</h2>
+          <p className="text-muted-foreground max-w-2xl mb-8">
+            Every change reports its delta. Nothing ships without a number behind it.
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-3"><Activity className="h-4 w-4 text-primary" /><Eyebrow>Per-field accuracy</Eyebrow></div>
+              <AccuracyBars />
+            </div>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <Eyebrow>Accuracy progression (last 3 commits)</Eyebrow>
+              <div className="mt-3"><CommitChart /></div>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <Eyebrow>Operational metrics</Eyebrow>
+              <div className="mt-3 space-y-2 text-xs">
+                <div className="flex justify-between"><span className="text-muted-foreground">Latency</span><span className="mono">{data.eval.ops.latency}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Cost / BOM</span><span className="mono">{data.eval.ops.cost}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Tests</span><span className="mono">{data.eval.ops.tests}</span></div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <Eyebrow>Synthetic labels (v0)</Eyebrow>
+              <p className="text-xs text-muted-foreground mt-3 leading-relaxed">{data.eval.labels}</p>
+            </div>
+          </div>
+        </section>
+
+        <footer className="mt-24 pt-8 border-t border-border text-center">
+          <p className="text-xs text-muted-foreground">Mouser BOM Intelligence Engine · POC build · Updated: {today}</p>
+        </footer>
       </div>
     </div>
   );
