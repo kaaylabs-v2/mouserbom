@@ -50,6 +50,70 @@ const sections = [
   { id: "trust", label: "Trust" },
   { id: "catalog", label: "Catalog" },
   { id: "eval", label: "Eval" },
+  { id: "deploy", label: "Deploy" },
+];
+
+const deployColumns = [
+  {
+    id: "org",
+    header: "Your Organization",
+    tone: "border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30",
+    cards: [
+      { title: "Employees & Applications", sub: "Managed devices · MFA · SSO" },
+      { title: "Corporate Data", sub: "Documents · Code · Customer records" },
+      { title: "Identity & Access (Entra ID)", sub: "Azure AD · RBAC · Conditional Access" },
+      { title: "Network Controls", sub: "Private links only · CASB · No public internet" },
+      { title: "Audit & Compliance", sub: "GDPR · HIPAA · SOC2 · ISO 27001" },
+      { title: "Data Loss Prevention (DLP)", sub: "Blocks PII · Prevents exfiltration · Watermarking", accent: "rose" as const },
+      { title: "Key Guarantee", sub: "Claude NEVER trained on your data\nYou own the encryption keys.", accent: "emerald" as const },
+    ],
+  },
+  {
+    id: "protect",
+    header: "Protection Layer",
+    tone: "border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20",
+    cards: [
+      { title: "Content & Safety Guardrails", sub: "Topic rules · Jailbreak detection · Blocklists" },
+      { title: "Encryption", sub: "TLS 1.3 in transit · AES-256 at rest · BYOK" },
+      { title: "Regional Compliance", sub: "EU stays in EU · HIPAA regions · Azure Policy" },
+      { title: "WAF & API Management", sub: "OWASP rules · Prompt-injection block · Rate limits" },
+      { title: "Vulnerability Management", sub: "Pen tests · SBOM · 24hr patch SLA" },
+      { title: "AI Governance", sub: "Inference-only · Microsoft & Anthropic contract" },
+      { title: "Prompt Firewall + Output Scanner", sub: "PII scrub · Sensitivity labeling · Anomaly alerts" },
+    ],
+    cardBorder: "border-emerald-500/60",
+  },
+  {
+    id: "azure",
+    header: "Azure Cloud — Private VNet",
+    tone: "border-blue-300 dark:border-blue-800 bg-blue-50/40 dark:bg-blue-950/20",
+    cards: [
+      { title: "Claude on Azure Marketplace", sub: "Anthropic-listed · Stateless · Region-locked" },
+      { title: "Private Connectivity", sub: "Azure Private Endpoint · No public internet · NSG: 443" },
+      { title: "Identity (Entra ID)", sub: "Managed Identity · Azure RBAC · MFA enforced" },
+      { title: "Encryption (Key Vault)", sub: "Customer Managed Keys · Microsoft has zero access" },
+      { title: "Audit Trail (Azure Monitor)", sub: "Every AI call logged · Log Analytics · Sentinel SIEM" },
+      { title: "Purview + Defender", sub: "Data classification · Sensitivity labels · Threats" },
+      { title: "Azure Policy", sub: "Deny non-approved regions · Deny public endpoints" },
+    ],
+    cardBorder: "border-blue-500/60",
+  },
+  {
+    id: "blocked",
+    header: "Blocked — Not Permitted",
+    tone: "border-rose-300 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20",
+    cards: [
+      { title: "Direct Anthropic API", sub: "api.anthropic.com · BLOCKED at firewall" },
+      { title: "OpenAI / ChatGPT", sub: "api.openai.com · chat.openai.com · BLOCKED" },
+      { title: "Data Exfiltration", sub: "USB · Email · Clipboard · BLOCKED" },
+      { title: "Model Training on Corp Data", sub: "No fine-tuning · Inference-only · BLOCKED" },
+      { title: "Cross-Region Data Movement", sub: "EU data stays in EU · Azure Policy · BLOCKED" },
+      { title: "Unapproved AI Tools", sub: "Consumer Claude.ai · Personal API keys · BLOCKED" },
+      { title: "Public Endpoints & Shadow IT", sub: "No public IPs · CASB enforced · All access monitored" },
+    ],
+    cardBorder: "border-rose-500/60 bg-rose-50/60 dark:bg-rose-950/30",
+    blocked: true,
+  },
 ];
 
 function useReveal<T extends HTMLElement>() {
