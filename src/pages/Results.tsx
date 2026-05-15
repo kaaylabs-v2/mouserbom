@@ -101,7 +101,9 @@ export default function Results() {
 
   const openDrawer = (row: ResultRow, initial: DrawerTab = "reco") => {
     setDrawerRow(row);
-    setDrawerTab(row.sku === "no_match" ? "input" : initial);
+    const isNoMatch = row.sku === "no_match";
+    if (isNoMatch && (initial === "reco" || initial === "input")) setDrawerTab("diag");
+    else setDrawerTab(initial);
   };
 
   const handleAction = async (action: "accept" | "reject" | "replace", row: ResultRow, replacedWith?: string) => {
