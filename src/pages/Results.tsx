@@ -746,17 +746,15 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
                 <div className="grid grid-cols-[100px_1fr_1fr] text-xs eyebrow text-muted-foreground bg-surface-muted px-3 py-2">
                   <div>FIELD</div><div>AS UPLOADED</div><div>NORMALIZED</div>
                 </div>
-                {fields.map(f => {
-                  const raw = String(rawMap[f] ?? "—");
-                  const norm = String(normalized[f] ?? "—");
-                  const diff = raw !== norm;
+                {fieldRows.map(({ key, raw, norm }) => {
+                  const diff = raw !== norm && raw !== "" && norm !== "";
                   return (
-                    <div key={f} className="grid grid-cols-[100px_1fr_1fr] items-center px-3 py-2 border-t border-border text-xs">
-                      <div className="mono text-muted-foreground">{f}</div>
-                      <div className={`mono ${diff ? "text-muted-foreground line-through" : "text-muted-foreground"}`}>{raw}</div>
+                    <div key={key} className="grid grid-cols-[140px_1fr_1fr] items-center px-3 py-2 border-t border-border text-xs">
+                      <div className="mono text-muted-foreground">{key}</div>
+                      <div className={`mono ${diff ? "text-muted-foreground line-through" : "text-muted-foreground"}`}>{raw || "—"}</div>
                       <div className={`mono inline-flex items-center gap-1.5 ${diff ? "px-1.5 py-0.5 rounded bg-success/10 text-success w-fit" : ""}`}>
-                        {norm}
-                        {diff && <span className="text-[9px] eyebrow">NORMALIZED</span>}
+                        {norm || "—"}
+                        {diff && <span className="eyebrow text-[9px] tracking-[0.18em] text-success/80">Normalized</span>}
                       </div>
                     </div>
                   );
