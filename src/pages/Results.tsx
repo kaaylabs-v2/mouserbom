@@ -174,7 +174,7 @@ export default function Results() {
         <div className="grid grid-cols-4 gap-4">
           <Stat label="Avg. confidence" value={`${Math.round(stats.avg * 100)}%`} bar={stats.avg} />
           <Stat label="High-confidence lines" value={`${stats.high} / ${stats.total}`} sub="≥85%" />
-          <Stat label="No-match lines" value={`${stats.noMatch}`} sub="Resolve" subAccent />
+          <Stat label="No-match lines" value={`${stats.noMatch}`} sub="Resolve" subAccent onSubClick={() => { setTab("no-match"); updateParam("tab", "no-match"); }} />
           <Stat label="Total est. cost @ qty" value={`$${stats.cost.toFixed(2)}`} sub="USD" />
         </div>
 
