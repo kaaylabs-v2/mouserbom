@@ -1,4 +1,19 @@
 export type Lifecycle = "active" | "nrnd" | "obsolete";
+export type ParsedInput = {
+  mpn?: string;
+  description?: string;
+  value?: string;
+  tolerance?: string;
+  voltage_rating?: string;
+  reference_designators?: string[];
+};
+export type NormalizedInput = {
+  value?: string;
+  tolerance?: string;
+  voltage_rating?: string;
+  reference_designators?: string[];
+};
+export type Diagnostics = { reasons: string[]; next_actions: string[] };
 export type ResultRow = {
   n: number;
   sku: string;
@@ -14,7 +29,9 @@ export type ResultRow = {
   qty: number;
   alternatives: AltRow[];
   raw: { description: string; mpn: string; qty: number };
-  input: { mpn?: string; description?: string };
+  input: ParsedInput;
+  normalized?: NormalizedInput;
+  diagnostics?: Diagnostics;
 };
 export type AltRow = {
   sku: string;
