@@ -577,7 +577,7 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
     ["top1_minus_top2",      (c * 0.18).toFixed(2), "Margin between top-1 and top-2 candidate scores; higher means clearer winner."],
     ["policy_penalty",       "0.00", "Penalty applied by the active substitution policy."],
   ];
-  // Force attribute_match_pct to a clean value (0.93 demo)
+  // Pin attribute_match_pct to a stable demo value distinct from pkg_match.
   signals[3][1] = "0.93";
 
   const allEvents: Array<{ t: string; ms: string; detail: string }> = [
