@@ -15,7 +15,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import * as XLSX from "xlsx";
 
 type FilterBand = "high" | "med" | "low";
-type DrawerTab = "reco" | "alts" | "input" | "audit";
+type DrawerTab = "reco" | "alts" | "input" | "audit" | "diag";
 
 export default function Results() {
   const { jobId } = useParams();
