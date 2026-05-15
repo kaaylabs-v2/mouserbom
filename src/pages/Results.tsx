@@ -675,7 +675,41 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
           {tab === "reco" && isNoMatch && (
             <div className="rounded-md border border-danger/30 bg-danger/5 p-4 text-sm">
               <div className="eyebrow text-danger mb-1">UNRESOLVED</div>
-              <p className="text-muted-foreground">No catalog candidate met the attribute threshold. Open the <button className="underline" onClick={() => setTab("input")}>Input</button> tab to review diagnostics.</p>
+              <p className="text-muted-foreground">No catalog candidate met the attribute threshold. Open the <button className="underline" onClick={() => setTab("diag")}>Diagnostic</button> tab to review reasons and next actions.</p>
+            </div>
+          )}
+          {tab === "diag" && isNoMatch && (
+            <div className="space-y-5">
+              <div className="rounded-md border border-danger/30 bg-danger/5 p-4">
+                <div className="eyebrow text-danger mb-1">UNRESOLVED</div>
+                <p className="text-xs text-muted-foreground">No catalog candidate met the attribute threshold. The retriever returned 0 candidates so the ranker never ran.</p>
+              </div>
+              <div>
+                <div className="eyebrow text-muted-foreground mb-2">REASONS</div>
+                <ul className="mono text-xs space-y-1">
+                  {(row.diagnostics?.reasons ?? ["mpn_unresolved"]).map((r) => (
+                    <li key={r} className="flex items-start gap-2">
+                      <span className="text-danger">•</span>
+                      <span className="text-foreground">{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <div className="eyebrow text-muted-foreground mb-2">NEXT ACTIONS</div>
+                <ul className="mono text-xs space-y-1">
+                  {(row.diagnostics?.next_actions ?? ["confirm_package"]).map((a) => (
+                    <li key={a} className="flex items-start gap-2">
+                      <span className="text-accent-cyan">→</span>
+                      <span className="text-foreground">{a}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="pt-2 flex items-center gap-2">
+                <button onClick={() => setTab("input")} className="h-9 px-3 rounded-md border border-border text-sm hover:bg-muted focus-ring">Open Input</button>
+                <button onClick={() => onAction("reject", row)} className="h-9 px-3 rounded-md border border-danger/40 text-danger text-sm hover:bg-danger/5 focus-ring">Reject line</button>
+              </div>
             </div>
           )}
           {tab === "alts" && (
