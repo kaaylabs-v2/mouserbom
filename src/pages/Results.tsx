@@ -544,36 +544,54 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Normalized vs raw diff
-  const normalized = { mpn: row.mpn, manufacturer: row.mfr, package: row.pkg, qty: row.qty };
-  const rawMap: Record<string, string | number> = {
-    mpn: row.raw.mpn, manufacturer: row.mfr, package: row.pkg, qty: row.raw.qty,
-  };
-  const fields: Array<keyof typeof normalized> = ["mpn", "manufacturer", "package", "qty"];
+  // Normalized vs raw diff (canonical fields + parser extras)
+  type Row = { key: string; raw: string; norm: string };
+  const baseFields: Row[] = [
+    { key: "mpn",          raw: String(row.raw.mpn),  norm: row.mpn },
+    { key: "manufacturer", raw: String(row.mfr),      norm: row.mfr },
+    { key: "package",      raw: String(row.pkg),      norm: row.pkg },
+    { key: "qty",          raw: String(row.raw.qty),  norm: String(row.qty) },
+  ];
+  const fmtList = (a?: string[]) => (a && a.length ? a.join(", ") : "");
+  const extras: Row[] = [];
+  const ri = row.input;
+  const rn = row.normalized ?? {};
+  if (ri.value != null)            extras.push({ key: "value",                  raw: ri.value,                                  norm: rn.value ?? ri.value });
+  if (ri.tolerance != null)        extras.push({ key: "tolerance",              raw: ri.tolerance,                              norm: rn.tolerance ?? ri.tolerance });
+  if (ri.voltage_rating != null)   extras.push({ key: "voltage_rating",         raw: ri.voltage_rating,                         norm: rn.voltage_rating ?? ri.voltage_rating });
+  if (ri.reference_designators)    extras.push({ key: "reference_designators",  raw: fmtList(ri.reference_designators),         norm: fmtList(rn.reference_designators ?? ri.reference_designators) });
+  const fieldRows: Row[] = [...baseFields, ...extras];
 
   // Deterministic signals from confidence
   const c = row.confidence;
+  const candidateSize = isNoMatch ? 0 : 42;
   const signals: Array<[string, string, string]> = [
-    ["mpn_exact", c >= 0.9 ? "1.00" : c.toFixed(2), "Whether the input MPN matched a canonical MPN exactly after normalization."],
-    ["pkg_match", Math.min(1, c + 0.04).toFixed(2), "Proportion of package attributes that aligned with the candidate."],
-    ["lexical_score", (c * 0.93).toFixed(2), "Token-level similarity between input description and catalog entry."],
-    ["semantic_score", (c * 0.98).toFixed(2), "Embedding cosine similarity between input and candidate."],
-    ["mfr_pref", row.mfr === "—" ? "0.00" : "0.92", "Manufacturer preference score from the active substitution policy."],
-    ["lifecycle", row.lifecycle === "active" ? "1.00" : "0.20", "1.0 if active; reduced for NRND/LTB; 0.2 for obsolete."],
-    ["top1_minus_top2", (c * 0.18).toFixed(2), "Margin between top-1 and top-2 candidate scores; higher means clearer winner."],
-    ["policy_penalty", "0.00", "Penalty applied by the active substitution policy."],
+    ["candidate_set_size",   String(candidateSize), "Number of catalog candidates the retriever returned to the ranker — the bounding input that prevents SKU hallucination."],
+    ["mpn_exact",            c >= 0.9 ? "1.00" : c.toFixed(2), "Whether the input MPN matched a canonical MPN exactly after normalization."],
+    ["pkg_match",            Math.min(1, c + 0.04).toFixed(2), "Whether the candidate's package matches the parsed package."],
+    ["attribute_match_pct",  (Math.min(1, c + 0.01)).toFixed(2).replace(/^/, "") , "Fraction of parsed attributes (value, tolerance, voltage, etc.) that align with the candidate."],
+    ["lexical_score",        (c * 0.93).toFixed(2), "Token-level similarity between input description and catalog entry."],
+    ["semantic_score",       (c * 0.98).toFixed(2), "Embedding cosine similarity between input and candidate."],
+    ["mfr_pref",             row.mfr === "—" ? "0.00" : "0.92", "Manufacturer preference score from the active substitution policy."],
+    ["lifecycle",            row.lifecycle === "active" ? "1.00" : "0.20", "1.0 if active; reduced for NRND/LTB; 0.2 for obsolete."],
+    ["top1_minus_top2",      (c * 0.18).toFixed(2), "Margin between top-1 and top-2 candidate scores; higher means clearer winner."],
+    ["policy_penalty",       "0.00", "Penalty applied by the active substitution policy."],
   ];
+  // Force attribute_match_pct to a clean value (0.93 demo)
+  signals[3][1] = "0.93";
 
-  const auditEvents: Array<{ t: string; ms: string; detail: string }> = [
+  const allEvents: Array<{ t: string; ms: string; detail: string }> = [
     { t: "ingested",   ms: "+0.00s", detail: `Row ${row.n} read from upload` },
-    { t: "parsed",     ms: "+0.31s", detail: "Column map v2 applied" },
-    { t: "normalized", ms: "+0.74s", detail: `MPN canonicalized → ${row.mpn}` },
-    { t: "retrieved",  ms: "+1.12s", detail: "42 candidates · vector + lexical hybrid" },
-    { t: "ranked",     ms: "+1.83s", detail: `ranker:v3.4 · top-1 score ${c.toFixed(2)}` },
-    { t: "scored",     ms: "+2.04s", detail: `band: ${c >= 0.85 ? "high" : c >= 0.6 ? "medium" : "low"}` },
+    { t: "parsed",     ms: "+0.31s", detail: "parser:b2_v1 · column map v2 applied" },
+    { t: "normalized", ms: "+0.74s", detail: `normalizer:b3_v0 · MPN canonicalized → ${row.mpn}` },
+    { t: "retrieved",  ms: "+1.12s", detail: isNoMatch ? "0 candidates · attribute threshold not met" : "42 candidates · vector + lexical hybrid" },
+    { t: "ranked",     ms: "+1.83s", detail: `ranker:b5_v0 · prompt:rank_v1 · top-1 score ${c.toFixed(2)}` },
+    { t: "confidence", ms: "+2.04s", detail: `calibrator b6_v0 · band: ${c >= 0.85 ? "high" : c >= 0.6 ? "medium" : "low"}` },
     { t: "enriched",   ms: "+2.39s", detail: "Live pricing + stock attached" },
     { t: "assembled",  ms: "+2.47s", detail: "Decision row finalized" },
   ];
+  // For no-match runs, stop after the failing stage.
+  const auditEvents = isNoMatch ? allEvents.slice(0, 4) : allEvents;
 
   return (
     <>
