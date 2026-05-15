@@ -236,7 +236,7 @@
     ],
     "rowCount": "10,247 SKUs in mock catalog · 50,000+ in real Mouser catalog (forecast)",
     "embedding": {
-      "model": "voyage-4-large",
+      "model": "voyage-3",
       "dim": 1024,
       "sourceText": "mpn | manufacturer | description | package",
       "idempotency": "hash includes model identifier"

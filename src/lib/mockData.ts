@@ -1,4 +1,19 @@
 export type Lifecycle = "active" | "nrnd" | "obsolete";
+export type ParsedInput = {
+  mpn?: string;
+  description?: string;
+  value?: string;
+  tolerance?: string;
+  voltage_rating?: string;
+  reference_designators?: string[];
+};
+export type NormalizedInput = {
+  value?: string;
+  tolerance?: string;
+  voltage_rating?: string;
+  reference_designators?: string[];
+};
+export type Diagnostics = { reasons: string[]; next_actions: string[] };
 export type ResultRow = {
   n: number;
   sku: string;
@@ -14,7 +29,9 @@ export type ResultRow = {
   qty: number;
   alternatives: AltRow[];
   raw: { description: string; mpn: string; qty: number };
-  input: { mpn?: string; description?: string };
+  input: ParsedInput;
+  normalized?: NormalizedInput;
+  diagnostics?: Diagnostics;
 };
 export type AltRow = {
   sku: string;
@@ -60,15 +77,32 @@ const baseSeed: Omit<ResultRow, "alternatives" | "raw" | "qty" | "lifecycle" | "
   { n: 24, sku: "RC0805FR-0710KL",     mpn: "RC0805FR-0710KL",        mfr: "Yageo",              pkg: "0805",           price: 0.01,  stock: 612000, alts: 3, confidence: 0.99, rationale: "Exact MPN. Volume pricing." },
 ];
 
-const inputBy: Record<number, { mpn?: string; description?: string }> = {
-  4:  { mpn: "CRCW0603-1K00-FKEA" },
-  5:  { mpn: "GRM188R71H104K" },
+const inputBy: Record<number, ParsedInput> = {
+  4:  { mpn: "CRCW0603-1K00-FKEA", value: "1k", tolerance: "1%" },
+  5:  { mpn: "GRM188R71H104K", value: "100nF", voltage_rating: "50V" },
   6:  { description: "0603 — pull-up on RESET" },
-  12: { description: "RS-232 transceiver, 5V" },
+  12: { description: "RS-232 transceiver, 5V", voltage_rating: "5V" },
   16: { description: "LDO 3.3V 1A" },
-  17: { mpn: "TLV1117-3.3" },
+  17: { mpn: "TLV1117-3.3", voltage_rating: "3.3V" },
   22: { description: "USB-A connector through-hole" },
-  24: { description: "10K 0805 1%" },
+  24: { description: "10K 0805 1%", value: "10K", tolerance: "1%" },
+};
+
+const normalizedBy: Record<number, NormalizedInput> = {
+  4:  { value: "1000Ω", tolerance: "1.0%" },
+  17: { voltage_rating: "3.3V" },
+  24: { value: "10000Ω", tolerance: "1.0%" },
+};
+
+const diagnosticsBy: Record<number, Diagnostics> = {
+  6: {
+    reasons: ["mpn_unresolved", "no_attribute_match", "candidate_set_empty"],
+    next_actions: ["confirm_package", "provide_value", "attach_datasheet"],
+  },
+  16: {
+    reasons: ["mpn_unresolved", "no_attribute_match"],
+    next_actions: ["confirm_package", "provide_value"],
+  },
 };
 
 export const seedRows: ResultRow[] = baseSeed.map((r) => ({
@@ -78,6 +112,86 @@ export const seedRows: ResultRow[] = baseSeed.map((r) => ({
   alternatives: r.alts ? altSeed(r.mpn, r.mfr === "—" ? "Generic" : r.mfr, r.pkg === "—" ? "0603" : r.pkg, r.price ?? 0.1) : [],
   raw: { description: `${r.mfr} ${r.pkg} ${r.mpn}`, mpn: r.mpn, qty: 50 },
   input: inputBy[r.n] ?? { mpn: r.mpn },
+  normalized: normalizedBy[r.n],
+  diagnostics: diagnosticsBy[r.n],
+}));
+
+// Dedicated dataset for "Try a sample BOM" — engineer-messy, 24 lines, ~85% match, ~$1,800 @ qty.
+type SampleSpec = Omit<ResultRow, "qty" | "lifecycle" | "alternatives" | "raw">;
+const sampleBase: SampleSpec[] = [
+  { n: 1,  sku: "STM32G474RET6",     mpn: "STM32G474RET6",     mfr: "STMicroelectronics", pkg: "LQFP-64",  price: 6.84, stock: 8200,  alts: 3, confidence: 0.97, rationale: "Exact MPN match.",
+    input: { mpn: "STM32G474RET6", reference_designators: ["U1"] } },
+  { n: 2,  sku: "TPS62933PDRLR",     mpn: "TPS62933PDRLR",     mfr: "Texas Instruments",  pkg: "SOT-583",  price: 0.92, stock: 14200, alts: 3, confidence: 0.94, rationale: "Exact MPN.",
+    input: { mpn: "TPS62933PDRLR", reference_designators: ["U2"] } },
+  { n: 3,  sku: "ADP3335ACPZ-3.3",   mpn: "ADP3335ACPZ-3.3",   mfr: "Analog Devices",     pkg: "LFCSP-8",  price: 2.18, stock: 3100,  alts: 3, confidence: 0.91, rationale: "Exact MPN. 3.3V LDO.",
+    input: { mpn: "ADP3335ACPZ-3.3", voltage_rating: "3.3V", reference_designators: ["U3"] } },
+  { n: 4,  sku: "RC0805FR-0710KL",   mpn: "RC0805FR-0710KL",   mfr: "Yageo",              pkg: "0805",     price: 0.01, stock: 612000, alts: 3, confidence: 0.99, rationale: "Normalized engineer shorthand → canonical MPN.",
+    input: { description: "10K 0805 1%", value: "10K", tolerance: "1%", reference_designators: ["R1","R2","R3","R4"] },
+    normalized: { value: "10000Ω", tolerance: "1.0%" } },
+  { n: 5,  sku: "GRM188R71H104KA93D",mpn: "GRM188R71H104KA93D",mfr: "Murata",             pkg: "0603",     price: 0.06, stock: 240000, alts: 3, confidence: 0.96, rationale: "Exact MPN.",
+    input: { mpn: "GRM188R71H104KA93D", value: "100nF", voltage_rating: "50V", reference_designators: ["C1","C2","C3","C4","C5"] } },
+  { n: 6,  sku: "GRM31CR61E226KE15L",mpn: "GRM31CR61E226KE15L",mfr: "Murata",             pkg: "1206",     price: 0.31, stock: 92000,  alts: 3, confidence: 0.93, rationale: "Exact MPN.",
+    input: { mpn: "GRM31CR61E226KE15L", value: "22µF", voltage_rating: "25V", reference_designators: ["C6","C7"] } },
+  { n: 7,  sku: "ERJ-3EKF4701V",     mpn: "ERJ-3EKF4701V",     mfr: "Panasonic",          pkg: "0603",     price: 0.02, stock: 480000, alts: 3, confidence: 0.95, rationale: "Engineer-messy refdes range expanded; value 4k7 normalized to 4700Ω.",
+    input: { mpn: "ERJ-3EKF4701V", value: "4k7", tolerance: "1%", reference_designators: ["R5","R6","R7"] },
+    normalized: { value: "4700Ω", tolerance: "1.0%" } },
+  { n: 8,  sku: "LM358DR",           mpn: "LM358DR",           mfr: "Texas Instruments",  pkg: "SOIC-8",   price: 0.18, stock: 96000,  alts: 3, confidence: 0.97, rationale: "Exact MPN.",
+    input: { mpn: "LM358DR", reference_designators: ["U4"] } },
+  { n: 9,  sku: "INA219AIDCNR",      mpn: "INA219AIDCNR",      mfr: "Texas Instruments",  pkg: "SOT-23-8", price: 1.74, stock: 6210,   alts: 3, confidence: 0.92, rationale: "Exact MPN.",
+    input: { mpn: "INA219AIDCNR", reference_designators: ["U5"] } },
+  { n: 10, sku: "AP2112K-3.3TRG1",   mpn: "AP2112K-3.3TRG1",   mfr: "Diodes Inc",         pkg: "SOT-25",   price: 0.36, stock: 41000,  alts: 3, confidence: 0.89, rationale: "Exact MPN. 3.3V LDO.",
+    input: { mpn: "AP2112K-3.3TRG1", voltage_rating: "3.3V", reference_designators: ["U6"] } },
+  { n: 11, sku: "BSS138LT1G",        mpn: "BSS138LT1G",        mfr: "onsemi",             pkg: "SOT-23",   price: 0.06, stock: 124000, alts: 3, confidence: 0.96, rationale: "Exact MPN.",
+    input: { mpn: "BSS138LT1G", reference_designators: ["Q1","Q2"] } },
+  { n: 12, sku: "PESD5V0S1BA",       mpn: "PESD5V0S1BA",       mfr: "Nexperia",           pkg: "SOD-323",  price: 0.07, stock: 84000,  alts: 3, confidence: 0.88, rationale: "Exact MPN.",
+    input: { mpn: "PESD5V0S1BA", voltage_rating: "5V", reference_designators: ["D1","D2"] } },
+  { n: 13, sku: "no_match",          mpn: "(unresolved)",      mfr: "—",                  pkg: "—",        price: null, stock: null,   alts: 0, confidence: 0.31, rationale: "Description ambiguous; no candidate met the attribute threshold.",
+    input: { description: "0603 — pull-up on RESET", reference_designators: ["R8"] },
+    diagnostics: {
+      reasons: ["mpn_unresolved", "no_attribute_match", "candidate_set_empty"],
+      next_actions: ["confirm_package", "provide_value", "attach_datasheet"],
+    } },
+  { n: 14, sku: "ABM8G-25.000MHZ-4Y",mpn: "ABM8G-25.000MHZ-4Y-T3",mfr: "Abracon",         pkg: "SMD-3225", price: 0.42, stock: 9100,   alts: 3, confidence: 0.86, rationale: "Normalized to canonical MPN.",
+    input: { description: "25MHz xtal SMD", value: "25MHz", reference_designators: ["Y1"] },
+    normalized: { value: "25.000MHz" } },
+  { n: 15, sku: "W25Q128JVSIQ",      mpn: "W25Q128JVSIQ",      mfr: "Winbond",            pkg: "SOIC-8",   price: 1.86, stock: 17400,  alts: 3, confidence: 0.95, rationale: "Exact MPN.",
+    input: { mpn: "W25Q128JVSIQ", reference_designators: ["U7"] } },
+  { n: 16, sku: "ESP32-WROOM-32E",   mpn: "ESP32-WROOM-32E",   mfr: "Espressif",          pkg: "Module",   price: 3.45, stock: 14500,  alts: 3, confidence: 0.96, rationale: "Exact MPN.",
+    input: { mpn: "ESP32-WROOM-32E", reference_designators: ["U8"] } },
+  { n: 17, sku: "FT232RL-REEL",      mpn: "FT232RL-REEL",      mfr: "FTDI",               pkg: "SSOP-28",  price: 4.62, stock: 7280,   alts: 3, confidence: 0.93, rationale: "Exact MPN.",
+    input: { mpn: "FT232RL-REEL", reference_designators: ["U9"] } },
+  { n: 18, sku: "MMBT3904LT1G",      mpn: "MMBT3904LT1G",      mfr: "onsemi",             pkg: "SOT-23",   price: 0.03, stock: 480000, alts: 3, confidence: 0.99, rationale: "Exact MPN.",
+    input: { mpn: "MMBT3904LT1G", reference_designators: ["Q3","Q4","Q5"] } },
+  { n: 19, sku: "TLV1117-33CDCYR",   mpn: "TLV1117-33CDCYR",   mfr: "Texas Instruments",  pkg: "SOT-223",  price: 0.38, stock: 22100,  alts: 3, confidence: 0.93, rationale: "Normalized engineer shorthand to canonical MPN.",
+    input: { mpn: "TLV1117-3.3", voltage_rating: "3.3V", reference_designators: ["U10"] },
+    normalized: { voltage_rating: "3.3V" } },
+  { n: 20, sku: "USB4110-GF-A",      mpn: "USB4110-GF-A",      mfr: "GCT",                pkg: "Through-Hole", price: 0.62, stock: 5400, alts: 3, confidence: 0.78, rationale: "Connector match.",
+    input: { description: "USB-A connector through-hole", reference_designators: ["J1"] } },
+  { n: 21, sku: "CDBU0530-HF",       mpn: "CDBU0530-HF",       mfr: "Comchip",            pkg: "0603",     price: 0.09, stock: 38000,  alts: 3, confidence: 0.87, rationale: "Exact MPN.",
+    input: { mpn: "CDBU0530-HF", reference_designators: ["D3","D4"] } },
+  { n: 22, sku: "MCP2515-I/SO",      mpn: "MCP2515-I/SO",      mfr: "Microchip",          pkg: "SOIC-18",  price: 1.92, stock: 2310,   alts: 3, confidence: 0.91, rationale: "Exact MPN.",
+    input: { mpn: "MCP2515-I/SO", reference_designators: ["U11"] } },
+  { n: 23, sku: "ATSAMD21G18A-AU",   mpn: "ATSAMD21G18A-AU",   mfr: "Microchip",          pkg: "TQFP-48",  price: 4.21, stock: 8120,   alts: 3, confidence: 0.79, rationale: "Exact MPN. Secondary MCU footprint partial.",
+    input: { mpn: "ATSAMD21G18A-AU", reference_designators: ["U12"] } },
+  { n: 24, sku: "RC0603FR-074K7L",   mpn: "RC0603FR-074K7L",   mfr: "Yageo",              pkg: "0603",     price: 0.01, stock: 380000, alts: 3, confidence: 0.83, rationale: "Engineer shorthand value 4k7 normalized to 4700Ω.",
+    input: { description: "4k7 0603", value: "4k7", tolerance: "1%", reference_designators: ["R9","R10"] },
+    normalized: { value: "4700Ω", tolerance: "1.0%" } },
+];
+
+const sampleQty: Record<number, number> = {
+  1: 5, 2: 10, 3: 10, 4: 200, 5: 100, 6: 50, 7: 200, 8: 20, 9: 25, 10: 25,
+  11: 50, 12: 50, 13: 25, 14: 5, 15: 10, 16: 5, 17: 10, 18: 200,
+  19: 10, 20: 5, 21: 50, 22: 10, 23: 5, 24: 200,
+};
+
+export const sampleRows: ResultRow[] = sampleBase.map((r) => ({
+  ...r,
+  qty: sampleQty[r.n] ?? 25,
+  lifecycle: r.confidence > 0.5 ? "active" : "obsolete",
+  alternatives: r.alts
+    ? altSeed(r.mpn, r.mfr === "—" ? "Generic" : r.mfr, r.pkg === "—" ? "0603" : r.pkg, r.price ?? 0.1)
+    : [],
+  raw: { description: r.input.description ?? `${r.mfr} ${r.pkg} ${r.mpn}`, mpn: r.input.mpn ?? r.mpn, qty: sampleQty[r.n] ?? 25 },
 }));
 
 export type Job = {
