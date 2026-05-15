@@ -1,4 +1,4 @@
-import { ResultRow, seedRows, stages, recentJobs as seedJobs, Job } from "./mockData";
+import { ResultRow, seedRows, sampleRows, stages, recentJobs as seedJobs, Job } from "./mockData";
 
 type StageState = "pending" | "active" | "complete" | "failed";
 export type JobState = {
