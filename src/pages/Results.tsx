@@ -743,7 +743,7 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
                 Compared values from the source row against the canonicalized record used for matching.
               </p>
               <div className="rounded-md border border-border overflow-hidden">
-                <div className="grid grid-cols-[100px_1fr_1fr] text-xs eyebrow text-muted-foreground bg-surface-muted px-3 py-2">
+                <div className="grid grid-cols-[140px_1fr_1fr] text-xs eyebrow text-muted-foreground bg-surface-muted px-3 py-2">
                   <div>FIELD</div><div>AS UPLOADED</div><div>NORMALIZED</div>
                 </div>
                 {fieldRows.map(({ key, raw, norm }) => {
