@@ -569,7 +569,7 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
     ["candidate_set_size",   String(candidateSize), "Number of catalog candidates the retriever returned to the ranker — the bounding input that prevents SKU hallucination."],
     ["mpn_exact",            c >= 0.9 ? "1.00" : c.toFixed(2), "Whether the input MPN matched a canonical MPN exactly after normalization."],
     ["pkg_match",            Math.min(1, c + 0.04).toFixed(2), "Whether the candidate's package matches the parsed package."],
-    ["attribute_match_pct",  (Math.min(1, c + 0.01)).toFixed(2).replace(/^/, "") , "Fraction of parsed attributes (value, tolerance, voltage, etc.) that align with the candidate."],
+    ["attribute_match_pct",  Math.min(1, c + 0.01).toFixed(2), "Fraction of parsed attributes (value, tolerance, voltage, etc.) that align with the candidate."],
     ["lexical_score",        (c * 0.93).toFixed(2), "Token-level similarity between input description and catalog entry."],
     ["semantic_score",       (c * 0.98).toFixed(2), "Embedding cosine similarity between input and candidate."],
     ["mfr_pref",             row.mfr === "—" ? "0.00" : "0.92", "Manufacturer preference score from the active substitution policy."],
