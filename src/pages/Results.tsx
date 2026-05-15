@@ -316,7 +316,8 @@ function downloadBlob(blob: Blob, name: string) {
   URL.revokeObjectURL(url);
 }
 
-function Stat({ label, value, sub, bar, subAccent }: { label: string; value: string; sub?: string; bar?: number; subAccent?: boolean }) {
+function Stat({ label, value, sub, bar, subAccent, onSubClick }: { label: string; value: string; sub?: string; bar?: number; subAccent?: boolean; onSubClick?: () => void }) {
+  const SubEl = onSubClick ? "button" : "div";
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -326,7 +327,7 @@ function Stat({ label, value, sub, bar, subAccent }: { label: string; value: str
           <div className="h-full bg-accent" style={{ width: `${Math.round(bar * 100)}%` }} />
         </div>
       )}
-      {sub && <div className={`mt-2 text-xs ${subAccent ? "text-accent cursor-pointer hover:underline" : "text-muted-foreground"}`}>{sub}</div>}
+      {sub && <SubEl onClick={onSubClick} className={`mt-2 text-xs text-left ${subAccent ? "text-accent hover:underline focus-ring rounded" : "text-muted-foreground"}`}>{sub}</SubEl>}
     </div>
   );
 }
