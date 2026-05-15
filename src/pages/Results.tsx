@@ -614,7 +614,10 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
           </div>
         </div>
         <div className="flex border-b border-border px-5">
-          {([["reco", "Recommendation"], ["alts", `Alternatives (${row.alternatives.length})`], ["input", "Input"], ["audit", "Audit"]] as const).map(([k, label]) => (
+          {(isNoMatch
+            ? ([["diag", "Diagnostic"], ["alts", `Alternatives (${row.alternatives.length})`], ["input", "Input"], ["audit", "Audit"]] as const)
+            : ([["reco", "Recommendation"], ["alts", `Alternatives (${row.alternatives.length})`], ["input", "Input"], ["audit", "Audit"]] as const)
+          ).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`relative h-10 px-3 text-sm focus-ring ${tab === k ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               {label}
