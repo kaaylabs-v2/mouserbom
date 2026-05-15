@@ -51,10 +51,12 @@ export function getJobMeta(id: string): { file: string; lines: number; createdAt
 
 export function createJob(file: { name: string; size: number }): JobState {
   const id = "j_" + Math.random().toString(36).slice(2, 7);
-  const lines = seedRows.length;
+  const isSample = /sample/i.test(file.name || "");
+  const filename = file.name || "uploaded.csv";
+  const lines = isSample ? sampleRows.length : seedRows.length;
   const state: JobState = {
     id,
-    file: file.name || "uploaded.csv",
+    file: filename,
     lines,
     startedAt: Date.now(),
     status: "processing",
@@ -67,7 +69,11 @@ export function createJob(file: { name: string; size: number }): JobState {
     id, file: state.file, lines, status: "processing", matchRate: null,
     submitted: new Date().toISOString(),
   });
-  buildResultsForJob(id, lines);
+  if (isSample) {
+    resultsCache.set(id, sampleRows.map((r, i) => ({ ...r, n: i + 1 })));
+  } else {
+    buildResultsForJob(id, lines);
+  }
   return state;
 }
 
