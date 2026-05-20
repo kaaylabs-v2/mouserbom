@@ -488,10 +488,12 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
                       <div className="mono"><span className="text-muted-foreground">MPN:</span> <span className="text-foreground">{r.input.mpn || "—"}</span></div>
                       <div className="mono"><span className="text-muted-foreground">Description:</span> <span className="text-foreground">{r.input.description || "—"}</span></div>
-                    </div>
-                  </div>
-                  {r.alternatives.map((a) => (
-                    <div key={a.sku} className="rounded-md border border-border bg-card p-3">
+                      <div className="mono text-xs text-muted-foreground">{a.mfr}</div>
+                      <div className="mono text-sm font-medium mt-0.5">{a.mpn}</div>
+                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                        <div className="mt-0.5 text-[11px] italic text-muted-foreground/90 leading-snug">{a.tradeoff_note}</div>
+                      )}
+
                       <div className="mono text-xs text-muted-foreground">{a.mfr}</div>
                       <div className="mono text-sm font-medium mt-0.5">{a.mpn}</div>
                       <div className="mt-2 flex items-center gap-2 text-xs">
