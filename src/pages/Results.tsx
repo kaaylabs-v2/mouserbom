@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getResults, getJobMeta, submitFeedback } from "@/lib/mockApi";
 import { ResultRow } from "@/lib/mockData";
 import { ConfidenceBar, StockBar } from "@/components/atoms";
-import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu } from "lucide-react";
+import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu, Lightbulb } from "lucide-react";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
