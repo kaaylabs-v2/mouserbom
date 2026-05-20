@@ -741,6 +741,9 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
                     <div>
                       <div className="mono text-sm">{a.mpn}</div>
                       <div className="text-xs text-muted-foreground">{a.mfr} · {a.pkg}</div>
+                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                        <div className="mt-1 text-[11px] italic text-muted-foreground/90">{a.tradeoff_note}</div>
+                      )}
                     </div>
                     <div className="mono text-sm">${a.price.toFixed(2)}</div>
                   </div>
@@ -749,7 +752,10 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
                     <Badge ok={a.match.tol}>Tol</Badge>
                     <Badge ok={a.match.voltage}>Voltage</Badge>
                   </div>
-                  <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
+                  {a.rationale && a.rationale.trim() !== "" && (
+                    <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
+                  )}
+
                   <button
                     onClick={() => onAction("replace", row, a.sku)}
                     className="mt-3 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
