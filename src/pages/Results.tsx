@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getResults, getJobMeta, submitFeedback } from "@/lib/mockApi";
 import { ResultRow } from "@/lib/mockData";
 import { ConfidenceBar, StockBar } from "@/components/atoms";
-import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu } from "lucide-react";
+import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu, Lightbulb } from "lucide-react";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -408,8 +409,7 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
         </td>
         <td className="px-3 py-3 max-w-[220px]" data-input-cell>
           <YourLineCell input={r.input} />
-        </td>
-        <td className="px-3 py-3">
+        <td className="px-3 py-3 align-top">
           <div className="flex items-center gap-1.5">
             {!isNoMatch && (
               <button onClick={(e) => { e.stopPropagation(); onToggle(); }} data-noclick
@@ -419,6 +419,17 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
             )}
             <span className={`mono text-sm ${isNoMatch ? "text-muted-foreground italic" : ""}`}>{isNoMatch ? "(unresolved)" : r.sku}</span>
           </div>
+          {!isNoMatch && r.rationale && r.rationale.trim() !== "" && (
+            <div className="mt-1 ml-[26px] flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground max-w-[420px]">
+              <Lightbulb className="h-3 w-3 mt-[2px] shrink-0 text-accent" aria-hidden />
+              <span>
+                <span className="eyebrow text-[9px] tracking-[0.18em] text-muted-foreground/80 mr-1">WHY THIS MATCH</span>
+                <span className="italic">{r.rationale}</span>
+              </span>
+            </div>
+          )}
+        </td>
+
         </td>
         <td className="px-3 py-3 mono text-xs">{r.mpn}</td>
         <td className="px-3 py-3 text-sm">{r.mfr}</td>
@@ -468,10 +479,15 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden">
                 <div className="px-8 py-5 grid grid-cols-3 gap-4">
-                  <div className="col-span-3">
-                    <div className="eyebrow text-muted-foreground mb-1">RATIONALE</div>
-                    <p className="text-sm italic text-muted-foreground">{r.rationale}</p>
-                  </div>
+                  {r.rationale && r.rationale.trim() !== "" && (
+                    <div className="col-span-3">
+                      <div className="eyebrow text-muted-foreground mb-1 inline-flex items-center gap-1.5">
+                        <Lightbulb className="h-3 w-3 text-accent" /> WHY THIS MATCH
+                      </div>
+                      <p className="text-sm italic text-muted-foreground">{r.rationale}</p>
+                    </div>
+                  )}
+
                   <div className="col-span-3">
                     <div className="eyebrow text-muted-foreground mb-1">AS REQUESTED</div>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
@@ -483,6 +499,10 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
                     <div key={a.sku} className="rounded-md border border-border bg-card p-3">
                       <div className="mono text-xs text-muted-foreground">{a.mfr}</div>
                       <div className="mono text-sm font-medium mt-0.5">{a.mpn}</div>
+                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                        <div className="mt-0.5 text-[11px] italic text-muted-foreground/90 leading-snug">{a.tradeoff_note}</div>
+                      )}
+
                       <div className="mt-2 flex items-center gap-2 text-xs">
                         <span className="px-1.5 py-0.5 rounded bg-muted mono">{a.pkg}</span>
                         <span className="mono">${a.price.toFixed(2)}</span>
@@ -721,6 +741,9 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
                     <div>
                       <div className="mono text-sm">{a.mpn}</div>
                       <div className="text-xs text-muted-foreground">{a.mfr} · {a.pkg}</div>
+                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                        <div className="mt-1 text-[11px] italic text-muted-foreground/90">{a.tradeoff_note}</div>
+                      )}
                     </div>
                     <div className="mono text-sm">${a.price.toFixed(2)}</div>
                   </div>
@@ -729,7 +752,10 @@ function LineDrawer({ row, tab, setTab, onClose, onAction }: {
                     <Badge ok={a.match.tol}>Tol</Badge>
                     <Badge ok={a.match.voltage}>Voltage</Badge>
                   </div>
-                  <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
+                  {a.rationale && a.rationale.trim() !== "" && (
+                    <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
+                  )}
+
                   <button
                     onClick={() => onAction("replace", row, a.sku)}
                     className="mt-3 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
