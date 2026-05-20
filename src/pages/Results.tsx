@@ -409,8 +409,7 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
         </td>
         <td className="px-3 py-3 max-w-[220px]" data-input-cell>
           <YourLineCell input={r.input} />
-        </td>
-        <td className="px-3 py-3">
+        <td className="px-3 py-3 align-top">
           <div className="flex items-center gap-1.5">
             {!isNoMatch && (
               <button onClick={(e) => { e.stopPropagation(); onToggle(); }} data-noclick
@@ -420,6 +419,17 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
             )}
             <span className={`mono text-sm ${isNoMatch ? "text-muted-foreground italic" : ""}`}>{isNoMatch ? "(unresolved)" : r.sku}</span>
           </div>
+          {!isNoMatch && r.rationale && r.rationale.trim() !== "" && (
+            <div className="mt-1 ml-[26px] flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground max-w-[420px]">
+              <Lightbulb className="h-3 w-3 mt-[2px] shrink-0 text-accent" aria-hidden />
+              <span>
+                <span className="eyebrow text-[9px] tracking-[0.18em] text-muted-foreground/80 mr-1">WHY THIS MATCH</span>
+                <span className="italic">{r.rationale}</span>
+              </span>
+            </div>
+          )}
+        </td>
+
         </td>
         <td className="px-3 py-3 mono text-xs">{r.mpn}</td>
         <td className="px-3 py-3 text-sm">{r.mfr}</td>
