@@ -36,9 +36,6 @@ export type ResultRow = {
 export type AltRow = {
   sku: string;
   mpn: string;
-export type AltRow = {
-  sku: string;
-  mpn: string;
   mfr: string;
   pkg: string;
   price: number;
@@ -54,13 +51,6 @@ const altSeed = (mpn: string, mfr: string, pkg: string, basePrice: number): AltR
   { sku: mpn + "-C3", mpn: mpn.replace(/.$/, "Z"), mfr: mfr === "Murata" ? "TDK" : mfr, pkg, price: +(basePrice * 1.02).toFixed(2), stock: 24800, match: { pkg: true, tol: false, voltage: true }, rationale: "Alternate manufacturer. Higher stock.", tradeoff_note: "Same part, different manufacturer" },
 ];
 
-};
-
-const altSeed = (mpn: string, mfr: string, pkg: string, basePrice: number): AltRow[] => [
-  { sku: mpn + "-A1", mpn: mpn.replace(/.$/, "X"), mfr, pkg, price: +(basePrice * 0.96).toFixed(2), stock: 8400, match: { pkg: true, tol: true, voltage: true }, rationale: "Same family. -4% price. Active lifecycle." },
-  { sku: mpn + "-B2", mpn: mpn.replace(/.$/, "Y"), mfr, pkg, price: +(basePrice * 1.05).toFixed(2), stock: 1200, match: { pkg: true, tol: true, voltage: false }, rationale: "Tighter tolerance grade. +5% price." },
-  { sku: mpn + "-C3", mpn: mpn.replace(/.$/, "Z"), mfr: mfr === "Murata" ? "TDK" : mfr, pkg, price: +(basePrice * 1.02).toFixed(2), stock: 24800, match: { pkg: true, tol: false, voltage: true }, rationale: "Alternate manufacturer. Higher stock." },
-];
 
 const baseSeed: Omit<ResultRow, "alternatives" | "raw" | "qty" | "lifecycle" | "input">[] = [
   { n: 1,  sku: "STM32F407VGT6",       mpn: "STM32F407VGT6",         mfr: "STMicroelectronics", pkg: "LQFP-100",       price: 8.42,  stock: 12480,  alts: 3, confidence: 0.96, rationale: "Exact MPN match. Attribute compatibility 100% (package, voltage, lifecycle: active)." },
