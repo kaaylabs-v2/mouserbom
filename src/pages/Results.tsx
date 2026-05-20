@@ -479,10 +479,15 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden">
                 <div className="px-8 py-5 grid grid-cols-3 gap-4">
-                  <div className="col-span-3">
-                    <div className="eyebrow text-muted-foreground mb-1">RATIONALE</div>
-                    <p className="text-sm italic text-muted-foreground">{r.rationale}</p>
-                  </div>
+                  {r.rationale && r.rationale.trim() !== "" && (
+                    <div className="col-span-3">
+                      <div className="eyebrow text-muted-foreground mb-1 inline-flex items-center gap-1.5">
+                        <Lightbulb className="h-3 w-3 text-accent" /> WHY THIS MATCH
+                      </div>
+                      <p className="text-sm italic text-muted-foreground">{r.rationale}</p>
+                    </div>
+                  )}
+
                   <div className="col-span-3">
                     <div className="eyebrow text-muted-foreground mb-1">AS REQUESTED</div>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
