@@ -784,33 +784,44 @@ function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverrid
           )}
           {tab === "alts" && (
             <div className="space-y-3">
-              {row.alternatives.length === 0 && <p className="text-sm text-muted-foreground">No alternatives available. Try relaxing the substitution policy.</p>}
-              {row.alternatives.map(a => (
-                <div key={a.sku} className="rounded-md border border-border p-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="mono text-sm">{a.mpn}</div>
-                      <div className="text-xs text-muted-foreground">{a.mfr} · {a.pkg}</div>
-                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
-                        <div className="mt-1 text-[11px] italic text-muted-foreground/90">{a.tradeoff_note}</div>
+              {(() => {
+                const visible = filterAlts(row.alternatives);
+                if (visible.length === 0) {
+                  return <NoAltsMessage />;
+                }
+                return visible.map(a => {
+                  const pct = getAltPct(a);
+                  return (
+                    <div key={a.sku} className="rounded-md border border-border p-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="mono text-sm">{a.mpn}</span>
+                            <AltBadge pct={pct} />
+                          </div>
+                          <div className="text-xs text-muted-foreground">{a.mfr} · {a.pkg}</div>
+                          {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                            <div className="mt-1 text-[11px] italic text-muted-foreground/90">{a.tradeoff_note}</div>
+                          )}
+                        </div>
+                        <div className="mono text-sm">${a.price.toFixed(2)}</div>
+                      </div>
+                      <div className="mt-2 flex gap-1">
+                        <Badge ok={a.match.pkg}>Pkg</Badge>
+                        <Badge ok={a.match.tol}>Tol</Badge>
+                        <Badge ok={a.match.voltage}>Voltage</Badge>
+                      </div>
+                      {a.rationale && a.rationale.trim() !== "" && (
+                        <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
                       )}
-                    </div>
-                    <div className="mono text-sm">${a.price.toFixed(2)}</div>
-                  </div>
-                  <div className="mt-2 flex gap-1">
-                    <Badge ok={a.match.pkg}>Pkg</Badge>
-                    <Badge ok={a.match.tol}>Tol</Badge>
-                    <Badge ok={a.match.voltage}>Voltage</Badge>
-                  </div>
-                  {a.rationale && a.rationale.trim() !== "" && (
-                    <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
-                  )}
 
-                  <button
-                    onClick={() => onAction("replace", row, a.sku)}
-                    className="mt-3 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
-                </div>
-              ))}
+                      <button
+                        onClick={() => onAction("replace", row, a.sku)}
+                        className="mt-3 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
           {tab === "input" && (
