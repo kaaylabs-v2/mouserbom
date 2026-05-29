@@ -315,6 +315,8 @@ const { lines } = await res.json();`}</pre>
             setTab={setDrawerTab}
             onClose={() => setDrawerRow(null)}
             onAction={handleAction}
+            jobId={jobId ?? ""}
+            onApplyOverride={applyOverride}
           />
         )}
       </AnimatePresence>
