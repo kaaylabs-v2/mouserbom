@@ -386,14 +386,16 @@ function Walkthrough() {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-slate-300 dark:border-border bg-slate-50 dark:bg-surface-muted px-4 py-3">
-        <Eyebrow>Input line (intentionally messy)</Eyebrow>
-        <div className="mono text-sm mt-2">R5-R7 | 4k7 | 0603 | 1% | ERJ-3EKF4701V | Panasonic</div>
+        <Eyebrow>Input line (intentionally messy — no MPN, multi-manufacturer)</Eyebrow>
+        <div className="mono text-sm mt-2">{w.rawLine}</div>
       </div>
 
       <WalkStep n={1} title="Ingest — raw cells parsed from the file" type="det">
         <div className="flex flex-wrap gap-2">
-          {w.raw.map((c) => (
-            <span key={c} className="mono text-xs px-2 py-1 rounded border border-border bg-surface-muted">{c}</span>
+          {w.raw.map((c, i) => (
+            <span key={i} className={`mono text-xs px-2 py-1 rounded border ${c === "" ? "border-dashed border-amber-400 dark:border-amber-500/50 bg-amber-50/60 dark:bg-amber-500/5 text-muted-foreground italic" : "border-border bg-surface-muted"}`}>
+              {c === "" ? "∅ empty (MPN)" : c}
+            </span>
           ))}
         </div>
       </WalkStep>
@@ -402,10 +404,13 @@ function Walkthrough() {
         {Object.entries(w.parsed).map(([k, v]) => (
           <KV key={k} k={k} v={JSON.stringify(v)} />
         ))}
+        {w.parsedNote && (
+          <div className="mt-3 text-[11px] text-amber-700 dark:text-amber-300 italic">{w.parsedNote}</div>
+        )}
       </WalkStep>
 
       <WalkStep n={3} title="Normalize — manufacturer + values canonicalized" type="det">
-        <KV k="manufacturer" v={`"${w.normalized.manufacturer}"`} />
+        <KV k="manufacturer" v={JSON.stringify(w.normalized.manufacturer)} />
         <KV k="value" v={`"${w.normalized.value}"`} />
         <KV k="normalizer_version" v={`"${w.normalized.normalizer_version}"`} />
         <div className="mt-3 text-[11px] text-muted-foreground italic">{w.normalized.note}</div>
@@ -413,14 +418,24 @@ function Walkthrough() {
 
       <WalkStep n={4} title="Retrieve — four lanes converge to a candidate set" type="ml">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {w.retrieved.lanes.map((lane) => (
-            <div key={lane.name} className="rounded-md border border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/5 p-2">
-              <div className="text-[11px] font-semibold flex justify-between"><span>{lane.name}</span><span className="mono text-muted-foreground">{lane.score.toFixed(2)}</span></div>
-              <ul className="mt-1 space-y-0.5">
-                {lane.candidates.map((c) => <li key={c} className="mono text-[10px] truncate">{c}</li>)}
-              </ul>
-            </div>
-          ))}
+          {w.retrieved.lanes.map((lane) => {
+            const empty = lane.candidates.length === 0;
+            return (
+              <div key={lane.name} className={`rounded-md border p-2 ${empty ? "border-dashed border-slate-300 dark:border-border bg-slate-50/50 dark:bg-surface-muted/30" : "border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/5"}`}>
+                <div className="text-[11px] font-semibold flex justify-between"><span>{lane.name}</span><span className="mono text-muted-foreground">{lane.score.toFixed(2)}</span></div>
+                {empty ? (
+                  <div className="mt-2 text-[10px] italic text-muted-foreground">— {lane.note} —</div>
+                ) : (
+                  <ul className="mt-1 space-y-0.5">
+                    {lane.candidates.map((c) => <li key={c} className="mono text-[10px] truncate">{c}</li>)}
+                  </ul>
+                )}
+                {!empty && lane.note && (
+                  <div className="mt-1 text-[10px] italic text-muted-foreground">{lane.note}</div>
+                )}
+              </div>
+            );
+          })}
         </div>
         <div className="flex justify-center my-2 text-muted-foreground"><ChevronDown className="h-4 w-4" /></div>
         <div className="rounded-md border border-border bg-surface-muted p-3">
@@ -433,6 +448,9 @@ function Walkthrough() {
               </li>
             ))}
           </ul>
+          {w.retrieved.fusedNote && (
+            <div className="mt-3 text-[11px] italic text-muted-foreground">{w.retrieved.fusedNote}</div>
+          )}
         </div>
       </WalkStep>
 
@@ -450,13 +468,16 @@ function Walkthrough() {
       <WalkStep n={6} title="Confidence — calibrated probability + signals" type="ml">
         <div className="flex items-baseline gap-3">
           <div className="mono text-3xl font-bold">{w.confidence.score}</div>
-          <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40">{w.confidence.band}</span>
+          <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">{w.confidence.band}</span>
         </div>
         <div className="mt-3 grid sm:grid-cols-2 gap-x-6">
           {Object.entries(w.confidence.signals).map(([k, v]) => (
             <KV key={k} k={k} v={String(v)} />
           ))}
         </div>
+        {w.confidence.note && (
+          <div className="mt-3 text-[11px] italic text-muted-foreground">{w.confidence.note}</div>
+        )}
       </WalkStep>
 
       <WalkStep n={7} title="Enrich — live catalog data attached" type="det">
@@ -466,13 +487,34 @@ function Walkthrough() {
       <WalkStep n={8} title="Assemble — final recommendation + audit trail" type="det">
         <div className="rounded-md border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-500/5 p-3">
           <Eyebrow>Top-1</Eyebrow>
-          <div className="flex justify-between mt-1"><span className="mono text-sm">{w.assembled.top1.sku}</span><span className="mono text-xs">conf {w.assembled.top1.confidence}</span></div>
+          <div className="flex justify-between mt-1">
+            <div>
+              <div className="mono text-sm">{w.assembled.top1.sku}</div>
+              {w.assembled.top1.manufacturer && <div className="text-[11px] text-muted-foreground">{w.assembled.top1.manufacturer}</div>}
+            </div>
+            <div className="text-right">
+              <span className="mono text-xs">conf {w.assembled.top1.confidence}</span>
+              {w.assembled.top1.band && <div className="text-[10px] text-amber-700 dark:text-amber-300">{w.assembled.top1.band}</div>}
+            </div>
+          </div>
+          {w.assembled.top1.rationale && (
+            <div className="mt-2 text-[11px] italic text-muted-foreground">{w.assembled.top1.rationale}</div>
+          )}
         </div>
         <div className="mt-3">
           <Eyebrow>Alternates</Eyebrow>
           <ul className="mt-2 space-y-1">
             {w.assembled.alternates.map((a) => (
-              <li key={a.sku} className="flex justify-between text-xs"><span className="mono">{a.sku}</span><span className="mono text-muted-foreground">conf {a.confidence}</span></li>
+              <li key={a.sku} className="flex justify-between items-start text-xs gap-3">
+                <div className="min-w-0">
+                  <span className="mono">{a.sku}</span>
+                  {a.manufacturer && <span className="text-muted-foreground"> · {a.manufacturer}</span>}
+                  {a.label && (
+                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${a.label === "Strong alternative" ? "bg-emerald-500 text-white" : "bg-amber-500 text-amber-950"}`}>{a.label}</span>
+                  )}
+                </div>
+                <span className="mono text-muted-foreground whitespace-nowrap">conf {a.confidence}</span>
+              </li>
             ))}
           </ul>
         </div>
