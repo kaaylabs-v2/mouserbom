@@ -852,6 +852,7 @@ function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverrid
               </div>
             </div>
           )}
+          <ClarifyPanel row={row} jobId={jobId} onApplyOverride={onApplyOverride} />
         </div>
       </motion.aside>
     </>
