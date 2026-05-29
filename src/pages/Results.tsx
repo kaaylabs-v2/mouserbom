@@ -1,7 +1,7 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { getResults, getJobMeta, submitFeedback } from "@/lib/mockApi";
-import { ResultRow } from "@/lib/mockData";
+import { ResultRow, AltRow } from "@/lib/mockData";
 import { ConfidenceBar, StockBar } from "@/components/atoms";
 import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu, Lightbulb, HelpCircle, Loader2 } from "lucide-react";
 
@@ -508,32 +508,44 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
                       <div className="mono"><span className="text-muted-foreground">Description:</span> <span className="text-foreground">{r.input.description || "—"}</span></div>
                     </div>
                   </div>
-                  {r.alternatives.map((a) => (
-                    <div key={a.sku} className="rounded-md border border-border bg-card p-3">
-                      <div className="mono text-xs text-muted-foreground">{a.mfr}</div>
-                      <div className="mono text-sm font-medium mt-0.5">{a.mpn}</div>
-                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
-                        <div className="mt-0.5 text-[11px] italic text-muted-foreground/90 leading-snug">{a.tradeoff_note}</div>
-                      )}
+                  {(() => {
+                    const visible = filterAlts(r.alternatives);
+                    if (visible.length === 0) {
+                      return <div className="col-span-3"><NoAltsMessage /></div>;
+                    }
+                    return visible.map((a) => {
+                      const pct = getAltPct(a);
+                      return (
+                        <div key={a.sku} className="rounded-md border border-border bg-card p-3">
+                          <div className="mono text-xs text-muted-foreground">{a.mfr}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="mono text-sm font-medium">{a.mpn}</span>
+                            <AltBadge pct={pct} />
+                          </div>
+                          {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                            <div className="mt-0.5 text-[11px] italic text-muted-foreground/90 leading-snug">{a.tradeoff_note}</div>
+                          )}
 
-                      <div className="mt-2 flex items-center gap-2 text-xs">
-                        <span className="px-1.5 py-0.5 rounded bg-muted mono">{a.pkg}</span>
-                        <span className="mono">${a.price.toFixed(2)}</span>
-                        <span className="mono text-muted-foreground">{a.stock.toLocaleString()} in stock</span>
-                      </div>
-                      <div className="mt-2 flex items-center gap-1 flex-wrap">
-                        <Badge ok={a.match.pkg}>Pkg</Badge>
-                        <Badge ok={a.match.tol}>Tol</Badge>
-                        <Badge ok={a.match.voltage}>Voltage</Badge>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          await submitFeedback({ recommendation_id: r.sku, action: "replace", replacedWith: a.sku });
-                          toast.success(`Replaced line ${r.n.toString().padStart(2, "0")} with ${a.mpn}`);
-                        }}
-                        className="mt-3 w-full h-8 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
-                    </div>
-                  ))}
+                          <div className="mt-2 flex items-center gap-2 text-xs">
+                            <span className="px-1.5 py-0.5 rounded bg-muted mono">{a.pkg}</span>
+                            <span className="mono">${a.price.toFixed(2)}</span>
+                            <span className="mono text-muted-foreground">{a.stock.toLocaleString()} in stock</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-1 flex-wrap">
+                            <Badge ok={a.match.pkg}>Pkg</Badge>
+                            <Badge ok={a.match.tol}>Tol</Badge>
+                            <Badge ok={a.match.voltage}>Voltage</Badge>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              await submitFeedback({ recommendation_id: r.sku, action: "replace", replacedWith: a.sku });
+                              toast.success(`Replaced line ${r.n.toString().padStart(2, "0")} with ${a.mpn}`);
+                            }}
+                            className="mt-3 w-full h-8 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </motion.div>
             </td>
@@ -549,6 +561,30 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
     <span className={`text-[10px] mono px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 ${ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>
       {children} {ok ? "✓" : "✗"}
     </span>
+  );
+}
+
+function getAltPct(a: AltRow): number {
+  return a.attribute_match_pct ?? 0.5;
+}
+
+function filterAlts(alternatives: AltRow[]): AltRow[] {
+  return alternatives.filter(a => getAltPct(a) >= 0.65);
+}
+
+function AltBadge({ pct }: { pct: number }) {
+  if (pct >= 0.85) {
+    return <span className="inline-flex items-center rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white">Strong alternative</span>;
+  }
+  return <span className="inline-flex items-center rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-medium text-amber-950">Possible substitute</span>;
+}
+
+function NoAltsMessage() {
+  return (
+    <div className="rounded-md border border-border bg-card border-l-4 border-l-amber-300 p-4">
+      <div className="font-medium text-sm">No comparable alternative in Mouser's catalog</div>
+      <p className="text-xs text-muted-foreground mt-1">This appears to be a unique part. If you need a substitute, you can add context using "Help us identify this part" below, or contact a Mouser sales engineer.</p>
+    </div>
   );
 }
 
@@ -748,33 +784,44 @@ function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverrid
           )}
           {tab === "alts" && (
             <div className="space-y-3">
-              {row.alternatives.length === 0 && <p className="text-sm text-muted-foreground">No alternatives available. Try relaxing the substitution policy.</p>}
-              {row.alternatives.map(a => (
-                <div key={a.sku} className="rounded-md border border-border p-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="mono text-sm">{a.mpn}</div>
-                      <div className="text-xs text-muted-foreground">{a.mfr} · {a.pkg}</div>
-                      {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
-                        <div className="mt-1 text-[11px] italic text-muted-foreground/90">{a.tradeoff_note}</div>
+              {(() => {
+                const visible = filterAlts(row.alternatives);
+                if (visible.length === 0) {
+                  return <NoAltsMessage />;
+                }
+                return visible.map(a => {
+                  const pct = getAltPct(a);
+                  return (
+                    <div key={a.sku} className="rounded-md border border-border p-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="mono text-sm">{a.mpn}</span>
+                            <AltBadge pct={pct} />
+                          </div>
+                          <div className="text-xs text-muted-foreground">{a.mfr} · {a.pkg}</div>
+                          {a.tradeoff_note && a.tradeoff_note.trim() !== "" && (
+                            <div className="mt-1 text-[11px] italic text-muted-foreground/90">{a.tradeoff_note}</div>
+                          )}
+                        </div>
+                        <div className="mono text-sm">${a.price.toFixed(2)}</div>
+                      </div>
+                      <div className="mt-2 flex gap-1">
+                        <Badge ok={a.match.pkg}>Pkg</Badge>
+                        <Badge ok={a.match.tol}>Tol</Badge>
+                        <Badge ok={a.match.voltage}>Voltage</Badge>
+                      </div>
+                      {a.rationale && a.rationale.trim() !== "" && (
+                        <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
                       )}
-                    </div>
-                    <div className="mono text-sm">${a.price.toFixed(2)}</div>
-                  </div>
-                  <div className="mt-2 flex gap-1">
-                    <Badge ok={a.match.pkg}>Pkg</Badge>
-                    <Badge ok={a.match.tol}>Tol</Badge>
-                    <Badge ok={a.match.voltage}>Voltage</Badge>
-                  </div>
-                  {a.rationale && a.rationale.trim() !== "" && (
-                    <p className="text-xs italic text-muted-foreground mt-2">{a.rationale}</p>
-                  )}
 
-                  <button
-                    onClick={() => onAction("replace", row, a.sku)}
-                    className="mt-3 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
-                </div>
-              ))}
+                      <button
+                        onClick={() => onAction("replace", row, a.sku)}
+                        className="mt-3 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted focus-ring">Use this</button>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
           {tab === "input" && (

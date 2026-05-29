@@ -43,12 +43,13 @@ export type AltRow = {
   match: { pkg: boolean; tol: boolean; voltage: boolean };
   rationale: string;
   tradeoff_note?: string;
+  attribute_match_pct?: number;
 };
 
 const altSeed = (mpn: string, mfr: string, pkg: string, basePrice: number): AltRow[] => [
-  { sku: mpn + "-A1", mpn: mpn.replace(/.$/, "X"), mfr, pkg, price: +(basePrice * 0.96).toFixed(2), stock: 8400, match: { pkg: true, tol: true, voltage: true }, rationale: "Same family. -4% price. Active lifecycle.", tradeoff_note: "Cheaper, same family" },
-  { sku: mpn + "-B2", mpn: mpn.replace(/.$/, "Y"), mfr, pkg, price: +(basePrice * 1.05).toFixed(2), stock: 1200, match: { pkg: true, tol: true, voltage: false }, rationale: "Tighter tolerance grade. +5% price.", tradeoff_note: "Tighter tolerance, slightly pricier" },
-  { sku: mpn + "-C3", mpn: mpn.replace(/.$/, "Z"), mfr: mfr === "Murata" ? "TDK" : mfr, pkg, price: +(basePrice * 1.02).toFixed(2), stock: 24800, match: { pkg: true, tol: false, voltage: true }, rationale: "Alternate manufacturer. Higher stock.", tradeoff_note: "Same part, different manufacturer" },
+  { sku: mpn + "-A1", mpn: mpn.replace(/.$/, "X"), mfr, pkg, price: +(basePrice * 0.96).toFixed(2), stock: 8400, match: { pkg: true, tol: true, voltage: true }, rationale: "Same family. -4% price. Active lifecycle.", tradeoff_note: "Cheaper, same family", attribute_match_pct: 0.92 },
+  { sku: mpn + "-B2", mpn: mpn.replace(/.$/, "Y"), mfr, pkg, price: +(basePrice * 1.05).toFixed(2), stock: 1200, match: { pkg: true, tol: true, voltage: false }, rationale: "Tighter tolerance grade. +5% price.", tradeoff_note: "Tighter tolerance, slightly pricier", attribute_match_pct: 0.74 },
+  { sku: mpn + "-C3", mpn: mpn.replace(/.$/, "Z"), mfr: mfr === "Murata" ? "TDK" : mfr, pkg, price: +(basePrice * 1.02).toFixed(2), stock: 24800, match: { pkg: true, tol: false, voltage: true }, rationale: "Alternate manufacturer. Higher stock.", tradeoff_note: "Same part, different manufacturer", attribute_match_pct: 0.58 },
 ];
 
 
