@@ -41,7 +41,7 @@ export default function Workspace() {
           <div className="eyebrow text-accent-cyan/90 mb-4">BOM INTELLIGENCE ENGINE</div>
           <h1 className="text-5xl leading-[1.05] max-w-3xl">Turn any BOM into a purchase-ready decision.</h1>
           <p className="mt-5 text-lg text-navy-foreground/70 max-w-2xl">
-            Drop your file. We parse, match, rank alternatives, and score every line in under 30 seconds.
+            Drop your file. We parse, match, rank alternatives, and score every line.
           </p>
         </div>
       </section>

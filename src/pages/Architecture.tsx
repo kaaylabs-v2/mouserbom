@@ -575,7 +575,7 @@ export default function Architecture() {
         <section id="overview" className="scroll-mt-20">
           <Eyebrow>System architecture</Eyebrow>
           <h1 className="text-4xl md:text-5xl mt-3 max-w-4xl leading-[1.1]">
-            From a customer's messy BOM to confidence-scored Mouser SKUs in under 30 seconds — with the AI structurally barred from inventing parts.
+            From a customer's messy BOM to confidence-scored Mouser SKUs — with the AI structurally barred from inventing parts.
           </h1>
 
           <div className="grid md:grid-cols-3 gap-4 mt-10">
