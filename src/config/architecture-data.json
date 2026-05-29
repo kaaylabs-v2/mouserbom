@@ -152,46 +152,50 @@
     }
   ],
   "walkthrough": {
-    "raw": ["R5-R7", "4k7", "0603", "1%", "ERJ-3EKF4701V", "Panasonic"],
+    "rawLine": "R5-R7 | 4k7 | 0603 | 1% | (no MPN) | vishay or panasonic",
+    "raw": ["R5-R7", "4k7", "0603", "1%", "", "vishay or panasonic"],
     "parsed": {
-      "mpn": "ERJ-3EKF4701V",
-      "manufacturer": "Panasonic",
-      "package": "0603",
-      "value": "4.7k",
-      "tolerance": "1%",
       "refdes_set": ["R5","R6","R7"],
-      "parser_route": "rules",
-      "parse_confidence": 0.95
+      "value": "4.7k",
+      "package": "0603",
+      "tolerance": "1%",
+      "mpn": null,
+      "manufacturer_raw": "vishay or panasonic",
+      "parser_route": "mixed",
+      "parse_confidence": 0.82
     },
+    "parsedNote": "No MPN provided by customer; will be inferred from value, package, tolerance, and manufacturer.",
     "normalized": {
-      "manufacturer": "Panasonic Electronic Components",
+      "manufacturer": ["Vishay Dale", "Panasonic Electronic Components"],
       "value": "4.7kΩ",
       "normalizer_version": "b3_v0",
-      "note": "Catalog has 'Panasonic Electronic Components' — alias index resolved from 'Panasonic'."
+      "note": "Catalog has 'Vishay Dale' and 'Panasonic Electronic Components'; alias index resolved both from the user's 'vishay or panasonic'."
     },
     "retrieved": {
       "lanes": [
-        { "name": "Lexical Exact",   "score": 1.00, "candidates": ["652-ERJ-3EKF4701V"] },
-        { "name": "Lexical Fuzzy",   "score": 0.74, "candidates": ["652-ERJ-PA3F4701V","652-ERJ-3GEYJ472V"] },
-        { "name": "Semantic",        "score": 0.91, "candidates": ["71-CRCW06034K70FKEA","603-RC0603FR-074K7L"] },
-        { "name": "Cross-Reference", "score": 0.62, "candidates": ["652-ERJ-PA3F4701V"] }
+        { "name": "Lexical Exact",   "score": 0.00, "candidates": [], "note": "no MPN to match" },
+        { "name": "Lexical Fuzzy",   "score": 0.00, "candidates": [], "note": "no MPN to match" },
+        { "name": "Semantic",        "score": 0.88, "candidates": ["652-ERJ-3EKF4701V","71-CRCW06034K70FKEA","603-RC0603FR-074K7L"], "note": "12 candidates · 3 shown" },
+        { "name": "Cross-Reference", "score": 0.71, "candidates": ["652-ERJ-PA3F4701V","71-CRCW0603JNV4K70","667-ERA-3AEB472V"], "note": "6 candidates seeded from semantic lane" }
       ],
+      "fusedNote": "Semantic and cross-reference lanes carried the load because the customer didn't provide an MPN. The four-lane architecture matters most exactly in this case.",
       "fused": [
-        { "sku": "652-ERJ-3EKF4701V", "rrf": 0.987 },
-        { "sku": "652-ERJ-PA3F4701V", "rrf": 0.612 },
-        { "sku": "71-CRCW06034K70FKEA", "rrf": 0.554 },
+        { "sku": "71-CRCW06034K70FKEA", "rrf": 0.612 },
+        { "sku": "652-ERJ-3EKF4701V",  "rrf": 0.598 },
         { "sku": "603-RC0603FR-074K7L", "rrf": 0.501 },
-        { "sku": "652-ERJ-3GEYJ472V", "rrf": 0.388 }
+        { "sku": "652-ERJ-PA3F4701V",  "rrf": 0.447 },
+        { "sku": "71-CRCW0603JNV4K70", "rrf": 0.402 }
       ]
     },
     "ranked": {
-      "response": { "top1_index": 0, "rationale": "Exact MPN match: 4.7kΩ 1% 0603 thick film resistor; in stock; RoHS compliant; lifecycle Active." },
+      "response": { "top1_index": 1, "rationale": "ERJ-3EKF4701V (Panasonic) — 4.7kΩ 1% 0603 thick film resistor. Matches all requested specs (value, package, tolerance). The Vishay equivalent CRCW06034K70FKEA is functionally identical and shown as an alternative; selected Panasonic as top-1 based on stock and ranked-list ordering." },
       "top1_sku": "652-ERJ-3EKF4701V"
     },
     "confidence": {
-      "score": 0.94,
-      "band": "High",
-      "signals": { "top1_minus_top2": 0.32, "attribute_match_pct": 1.00, "lexical_score": 1.00, "semantic_score": 0.91 }
+      "score": 0.78,
+      "band": "Medium",
+      "signals": { "top1_minus_top2": 0.04, "attribute_match_pct": 1.00, "lexical_score": null, "semantic_score": 0.88, "candidate_set_size": 12 },
+      "note": "Lower than a clean-MPN line because the system had to infer the part from description alone. Medium band — surfaces to the customer with a 'review' indicator rather than auto-approved."
     },
     "enriched": {
       "unit_price_1k": "$0.024",
@@ -201,16 +205,16 @@
       "lifecycle": "active"
     },
     "assembled": {
-      "top1": { "sku": "652-ERJ-3EKF4701V", "confidence": 0.94 },
+      "top1": { "sku": "652-ERJ-3EKF4701V", "manufacturer": "Panasonic Electronic Components", "confidence": 0.78, "band": "Medium", "rationale": "4.7kΩ 1% 0603 thick film resistor. Matches all requested specs; selected over the Vishay equivalent on stock and ranked-list ordering." },
       "alternates": [
-        { "sku": "652-ERJ-PA3F4701V", "confidence": 0.71 },
-        { "sku": "71-CRCW06034K70FKEA", "confidence": 0.66 },
-        { "sku": "603-RC0603FR-074K7L", "confidence": 0.61 }
+        { "sku": "71-CRCW06034K70FKEA", "manufacturer": "Vishay Dale", "confidence": 0.76, "label": "Strong alternative" },
+        { "sku": "603-RC0603FR-074K7L", "manufacturer": "Yageo (cross-ref)", "confidence": 0.62, "label": "Possible substitute" },
+        { "sku": "652-ERJ-PA3F4701V",  "manufacturer": "Panasonic Electronic Components", "confidence": 0.58, "label": "Possible substitute" }
       ],
       "audit": {
         "pipeline_version": "1.2.0",
         "parser_version": "b2_v1",
-        "parser_route": "rules",
+        "parser_route": "mixed",
         "normalizer_version": "b3_v0",
         "ranker_version": "b5_v0",
         "prompt_version": "rank_v1",
