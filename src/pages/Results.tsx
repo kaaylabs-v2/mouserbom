@@ -858,3 +858,176 @@ function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverrid
     </>
   );
 }
+
+// Map raw diagnostics reason codes to a human-readable subtitle.
+function reasonToSubtitle(reason?: string): string {
+  if (!reason) return "We weren't fully confident about this match.";
+  const map: Record<string, string> = {
+    mpn_unresolved: "We couldn't find this MPN in our catalog.",
+    no_attribute_match: "No candidate matched the parsed attributes closely enough.",
+    candidate_set_empty: "The retriever returned no candidates for this line.",
+    ambiguous_description: "Several candidates matched and we weren't confident which one you meant.",
+    low_top1_margin: "The top two candidates scored too close to call confidently.",
+  };
+  return map[reason] ?? "We weren't fully confident about this match.";
+}
+
+function reasonToHint(reason?: string): string {
+  if (!reason) return "the application or any equivalent part numbers";
+  const map: Record<string, string> = {
+    mpn_unresolved: "any equivalent MPNs or the manufacturer you've used before",
+    no_attribute_match: "package, value, tolerance, or voltage rating",
+    candidate_set_empty: "package and value, or attach a datasheet link",
+    ambiguous_description: "what application this part is for or any equivalents you've seen",
+    low_top1_margin: "the manufacturer preference or specific package variant",
+  };
+  return map[reason] ?? "the application or any equivalent part numbers";
+}
+
+function ClarifyPanel({ row, jobId, onApplyOverride }: {
+  row: ResultRow; jobId: string; onApplyOverride: (n: number, patch: Partial<ResultRow>) => void;
+}) {
+  const isNoMatch = row.sku === "no_match";
+  const isLow = row.confidence < 0.6;
+  const eligible = isNoMatch || isLow;
+
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [lastClarification, setLastClarification] = useState<string>("");
+  const [softMessage, setSoftMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stillUncertain, setStillUncertain] = useState<string | null>(null);
+
+  if (!eligible) return null;
+
+  const reasons = row.diagnostics?.reasons ?? [];
+  const subtitle = reasonToSubtitle(reasons[0]);
+  const originalLine = row.input.mpn || row.input.description || row.raw.description || "—";
+  const trimmed = text.trim();
+  const overLimit = text.length > 500;
+  const disabled = loading || trimmed.length === 0;
+
+  const submit = async () => {
+    setLoading(true);
+    setSoftMessage(null);
+    setErrorMessage(null);
+    setStillUncertain(null);
+    try {
+      const res = await fetch(`/jobs/${encodeURIComponent(jobId)}/lines/${row.n}/clarify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clarification: trimmed }),
+      });
+      if (res.status === 404 || res.status === 501) {
+        setLastClarification(trimmed);
+        setSoftMessage("We've recorded your clarification. The re-evaluation feature will be available shortly.");
+        return;
+      }
+      if (!res.ok) {
+        setErrorMessage("We couldn't re-evaluate right now. Please try again, or contact support if this persists.");
+        return;
+      }
+      const updated = (await res.json()) as Partial<ResultRow>;
+      onApplyOverride(row.n, updated);
+      setLastClarification(trimmed);
+      toast.success("Re-evaluated with your context.");
+      const newConf = typeof updated.confidence === "number" ? updated.confidence : row.confidence;
+      const newSku = updated.sku ?? row.sku;
+      const stillBad = newSku === "no_match" || newConf < 0.6;
+      if (stillBad) {
+        const nextReason = updated.diagnostics?.reasons?.[0] ?? reasons[0];
+        setStillUncertain(`Still not fully confident — try adding more specific details about ${reasonToHint(nextReason)}.`);
+        setCollapsed(false);
+      } else {
+        setCollapsed(true);
+        setText("");
+      }
+    } catch {
+      // Network failure — treat as backend-not-available (graceful degradation).
+      setLastClarification(trimmed);
+      setSoftMessage("We've recorded your clarification. The re-evaluation feature will be available shortly.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (collapsed) {
+    const preview = lastClarification.length > 80 ? lastClarification.slice(0, 80) + "…" : lastClarification;
+    return (
+      <div className="mt-6 border-t border-border pt-5">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-3">
+          <HelpCircle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="eyebrow text-amber-700 dark:text-amber-400 mb-1">YOUR CLARIFICATION</div>
+            <p className="text-xs text-muted-foreground truncate">{preview}</p>
+          </div>
+          <button
+            onClick={() => { setCollapsed(false); setText(lastClarification); }}
+            className="text-xs px-2 py-1 rounded border border-border hover:bg-muted focus-ring shrink-0">
+            Clarify again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`mt-6 border-t border-border pt-5 ${loading ? "animate-pulse" : ""}`}>
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="flex items-start gap-2">
+          <HelpCircle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="flex-1">
+            <div className="eyebrow text-amber-700 dark:text-amber-400">HELP US IDENTIFY THIS PART</div>
+            <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <div className="eyebrow text-muted-foreground mb-1">YOUR ORIGINAL LINE</div>
+          <div className="mono text-xs rounded border border-border bg-card px-3 py-2 text-foreground break-words">
+            {originalLine}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            readOnly={loading}
+            rows={3}
+            maxLength={500}
+            placeholder="Tell us more — what does this part do, what application is it for, what equivalent parts have you seen, any context that would help us find the right Mouser SKU?"
+            className="w-full min-h-[72px] max-h-[200px] resize-y rounded-md border border-border bg-card px-3 py-2 text-sm focus-ring placeholder:text-muted-foreground"
+          />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className={`mono text-[11px] ${overLimit ? "text-danger" : "text-muted-foreground"}`}>
+              {text.length} / 500
+            </span>
+            <button
+              onClick={submit}
+              disabled={disabled}
+              className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-ring">
+              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {loading ? "Re-running with your context…" : "Re-evaluate with this context"}
+            </button>
+          </div>
+        </div>
+
+        {stillUncertain && (
+          <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">{stillUncertain}</p>
+        )}
+        {softMessage && (
+          <div className="mt-3 rounded border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+            {softMessage}
+          </div>
+        )}
+        {errorMessage && (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">
+            {errorMessage}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
