@@ -20,7 +20,7 @@ type DrawerTab = "reco" | "alts" | "input" | "audit" | "diag";
 
 export default function Results() {
   const { jobId } = useParams();
-  const rows = useMemo(() => getResults(jobId ?? ""), [jobId]);
+  const rawRows = useMemo(() => getResults(jobId ?? ""), [jobId]);
   const meta = useMemo(() => getJobMeta(jobId ?? ""), [jobId]);
   const [search, setSearch] = useSearchParams();
   const [openRow, setOpenRow] = useState<number | null>(null);
@@ -30,6 +30,11 @@ export default function Results() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [filename, setFilename] = useState(meta?.file ?? "bom.csv");
   const [apiOpen, setApiOpen] = useState(false);
+  const [overrides, setOverrides] = useState<Record<number, Partial<ResultRow>>>({});
+  const rows = useMemo(
+    () => rawRows.map(r => (overrides[r.n] ? { ...r, ...overrides[r.n] } : r)),
+    [rawRows, overrides]
+  );
   useEffect(() => { if (meta?.file) setFilename(meta.file); }, [meta?.file]);
 
   const q = search.get("q") ?? "";
