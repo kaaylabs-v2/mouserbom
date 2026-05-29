@@ -552,6 +552,30 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   );
 }
 
+function getAltPct(a: AltRow): number {
+  return a.attribute_match_pct ?? 0.5;
+}
+
+function filterAlts(alternatives: AltRow[]): AltRow[] {
+  return alternatives.filter(a => getAltPct(a) >= 0.65);
+}
+
+function AltBadge({ pct }: { pct: number }) {
+  if (pct >= 0.85) {
+    return <span className="inline-flex items-center rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white">Strong alternative</span>;
+  }
+  return <span className="inline-flex items-center rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-medium text-amber-950">Possible substitute</span>;
+}
+
+function NoAltsMessage() {
+  return (
+    <div className="rounded-md border border-border bg-card border-l-4 border-l-amber-300 p-4">
+      <div className="font-medium text-sm">No comparable alternative in Mouser's catalog</div>
+      <p className="text-xs text-muted-foreground mt-1">This appears to be a unique part. If you need a substitute, you can add context using "Help us identify this part" below, or contact a Mouser sales engineer.</p>
+    </div>
+  );
+}
+
 function YourLineCell({ input }: { input: { mpn?: string; description?: string } }) {
   const text = input.mpn && input.mpn.length > 0 ? input.mpn : (input.description ?? "");
   const display = text.length > 40 ? text.slice(0, 40) + "…" : text;
