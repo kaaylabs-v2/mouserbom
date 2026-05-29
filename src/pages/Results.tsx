@@ -566,9 +566,10 @@ function YourLineCell({ input }: { input: { mpn?: string; description?: string }
   );
 }
 
-function LineDrawer({ row, tab, setTab, onClose, onAction }: {
+function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverride }: {
   row: ResultRow; tab: DrawerTab; setTab: (t: DrawerTab) => void;
   onClose: () => void; onAction: (a: "accept" | "reject" | "replace", r: ResultRow, replacedWith?: string) => void;
+  jobId: string; onApplyOverride: (n: number, patch: Partial<ResultRow>) => void;
 }) {
   const isNoMatch = row.sku === "no_match";
   useEffect(() => {
