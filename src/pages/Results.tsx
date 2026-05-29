@@ -119,6 +119,12 @@ export default function Results() {
     setDrawerRow(null);
   };
 
+  const applyOverride = (n: number, patch: Partial<ResultRow>) => {
+    setOverrides(prev => ({ ...prev, [n]: { ...(prev[n] ?? {}), ...patch } }));
+    setDrawerRow(prev => (prev && prev.n === n ? { ...prev, ...patch } : prev));
+  };
+
+
   return (
     <div>
       {/* Header */}
