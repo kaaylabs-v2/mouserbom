@@ -11,7 +11,9 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
+  Info,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import data from "@/config/architecture-data.json";
 
 type StageType = "llm" | "ml" | "det";
@@ -372,10 +374,39 @@ function WalkStep({ n, title, children, type }: { n: number; title: string; chil
   );
 }
 
+const STAMP_TOOLTIPS: Record<string, string> = {
+  pipeline_version: "The overall version of the BOM Intelligence Engine that processed this line. Bumps when major architectural changes ship.",
+  parser_version: "The version of the parsing step that read this row. Bumps when parsing rules or the parser's AI prompt change.",
+  parser_route: "How this line was parsed — 'rules' means deterministic patterns handled it, 'llm_fallback' means the AI handled it, 'mixed' means both contributed.",
+  normalizer_version: "The version of the canonicalization step that translated shorthand into Mouser's official terminology. Bumps when the alias index or normalization rules change.",
+  ranker_version: "The version of the AI ranking step that picked the top recommendation. Bumps when the prompt, the model, or the scoring logic changes.",
+  prompt_version: "The exact version of the prompt the AI ranker received. Locked so any ranking decision can be replayed identically.",
+  calibrator_version: "The version of the confidence calibrator. 'hand_locked_v1' is a stop-gap calibrator that will be replaced by a trained one once richer ground-truth labels arrive.",
+  catalog_snapshot_id: "A fingerprint of which version of the Mouser catalog was indexed when this line was processed. Rotates when the catalog re-embeds, so 'before' and 'after' catalog changes can be cleanly separated in the audit trail.",
+};
+
+function StampLabel({ k }: { k: string }) {
+  const tip = STAMP_TOOLTIPS[k];
+  if (!tip) return <>{k}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center gap-1 cursor-help">
+          {k}
+          <Info className="h-3 w-3 text-muted-foreground/60" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[320px]">
+        <p className="text-xs leading-relaxed">{tip}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex gap-3 text-xs py-1 border-b border-dashed border-border last:border-0">
-      <span className="mono text-muted-foreground w-44 shrink-0">{k}</span>
+      <span className="mono text-muted-foreground w-44 shrink-0"><StampLabel k={k} /></span>
       <span className="mono break-all">{v}</span>
     </div>
   );
@@ -520,6 +551,9 @@ function Walkthrough() {
         </div>
         <div className="mt-4">
           <Eyebrow>Audit trail</Eyebrow>
+          <p className="text-xs italic text-muted-foreground mt-2">
+            Every recommendation carries a version stamp for every step that produced it. Hover any field for a plain-language explanation.
+          </p>
           <div className="mt-2 grid sm:grid-cols-2 gap-x-6">
             {Object.entries(w.assembled.audit).map(([k, v]) => <KV key={k} k={k} v={String(v)} />)}
           </div>
@@ -694,9 +728,12 @@ export default function Architecture() {
             </TrustCallout>
             <TrustCallout title="Every line is audit-traced" icon={FileSearch}>
               <p>When something goes wrong six months from now, we replay the exact path that produced the answer.</p>
+              <p className="text-xs italic text-muted-foreground mt-2 mb-1">
+                Every recommendation carries a version stamp for every step that produced it. Hover any field for a plain-language explanation.
+              </p>
               <div className="rounded border border-border bg-background p-2 mono text-[10px] space-y-0.5">
                 {Object.entries(data.walkthrough.assembled.audit).slice(0, 6).map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-2"><span className="text-muted-foreground">{k}</span><span>{String(v)}</span></div>
+                  <div key={k} className="flex justify-between gap-2"><span className="text-muted-foreground"><StampLabel k={k} /></span><span>{String(v)}</span></div>
                 ))}
               </div>
             </TrustCallout>
