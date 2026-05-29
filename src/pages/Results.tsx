@@ -1,7 +1,7 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { getResults, getJobMeta, submitFeedback } from "@/lib/mockApi";
-import { ResultRow } from "@/lib/mockData";
+import { ResultRow, AltRow } from "@/lib/mockData";
 import { ConfidenceBar, StockBar } from "@/components/atoms";
 import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu, Lightbulb, HelpCircle, Loader2 } from "lucide-react";
 
