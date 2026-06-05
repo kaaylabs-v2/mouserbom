@@ -1,6 +1,8 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { getResults, getJobMeta, submitFeedback } from "@/lib/mockApi";
+import { useQuery } from "@tanstack/react-query";
+import { submitFeedback } from "@/lib/mockApi";
+import { fetchResults, fetchJobMeta, downloadMouserQuote } from "@/lib/api";
 import { ResultRow, AltRow } from "@/lib/mockData";
 import { ConfidenceBar, StockBar } from "@/components/atoms";
 import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu, Lightbulb, HelpCircle, Loader2 } from "lucide-react";
@@ -20,8 +22,17 @@ type DrawerTab = "reco" | "alts" | "input" | "audit" | "diag";
 
 export default function Results() {
   const { jobId } = useParams();
-  const rawRows = useMemo(() => getResults(jobId ?? ""), [jobId]);
-  const meta = useMemo(() => getJobMeta(jobId ?? ""), [jobId]);
+  // Stage A: real backend read-path (replaces the synchronous mock).
+  const { data: rawRows = [] } = useQuery({
+    queryKey: ["results", jobId],
+    queryFn: () => fetchResults(jobId ?? ""),
+    enabled: !!jobId,
+  });
+  const { data: meta } = useQuery({
+    queryKey: ["jobMeta", jobId],
+    queryFn: () => fetchJobMeta(jobId ?? ""),
+    enabled: !!jobId,
+  });
   const [search, setSearch] = useSearchParams();
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [drawerRow, setDrawerRow] = useState<ResultRow | null>(null);
@@ -105,6 +116,18 @@ export default function Results() {
     toast.success(`Exported ${rows.length} lines as ${fmt.toUpperCase()}`);
   };
 
+  // Stage C: the Excel export is the server-rendered 12-column Mouser quote
+  // (single source of truth), not a client-side SheetJS re-derivation.
+  const exportMouserXlsx = async () => {
+    if (!jobId) return;
+    try {
+      await downloadMouserQuote(jobId, "xlsx");
+      toast.success("Downloaded Mouser quote (.xlsx)");
+    } catch (e) {
+      toast.error(`Export failed: ${String(e)}`);
+    }
+  };
+
   const openDrawer = (row: ResultRow, initial: DrawerTab = "reco") => {
     setDrawerRow(row);
     const isNoMatch = row.sku === "no_match";
@@ -152,7 +175,7 @@ export default function Results() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportRows("xlsx")}>Excel (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void exportMouserXlsx()}>Excel (.xlsx)</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => exportRows("csv")}>CSV</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => exportRows("json")}>JSON</DropdownMenuItem>
               </DropdownMenuContent>
@@ -422,6 +445,7 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
         </td>
         <td className="px-3 py-3 max-w-[220px]" data-input-cell>
           <YourLineCell input={r.input} />
+        </td>
         <td className="px-3 py-3 align-top">
           <div className="flex items-center gap-1.5">
             {!isNoMatch && (
@@ -441,8 +465,6 @@ function Row({ r, open, onToggle, onOpen, selected, onSelect }: {
               </span>
             </div>
           )}
-        </td>
-
         </td>
         <td className="px-3 py-3 mono text-xs">{r.mpn}</td>
         <td className="px-3 py-3 text-sm">{r.mfr}</td>
@@ -899,7 +921,10 @@ function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverrid
               </div>
             </div>
           )}
-          <ClarifyPanel row={row} jobId={jobId} onApplyOverride={onApplyOverride} />
+          {/* Clarify disabled for v1 — no backend /clarify route yet
+              (filed as a future-feature follow-up). Component retained
+              for when the route lands; gated off, not deleted. */}
+          {false && <ClarifyPanel row={row} jobId={jobId} onApplyOverride={onApplyOverride} />}
         </div>
       </motion.aside>
     </>
