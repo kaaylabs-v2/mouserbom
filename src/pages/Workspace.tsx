@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback, useRef, useState } from "react";
 import { Upload, ArrowRight, BookOpen, Plug, FileSpreadsheet } from "lucide-react";
-import { createJob, listJobs } from "@/lib/mockApi";
+import { listJobs } from "@/lib/mockApi";
+import { createJob } from "@/lib/api";
+import { toast } from "sonner";
 import { StatusPill } from "@/components/atoms";
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
@@ -28,10 +30,18 @@ export default function Workspace() {
   const [over, setOver] = useState(false);
   const recentJobs = listJobs();
 
-  const submit = useCallback((file: { name: string; size: number }) => {
-    const job = createJob(file);
-    nav(`/jobs/${job.id}`);
-  }, [nav]);
+  // Stage B: real multipart upload → POST /v1/jobs → navigate to live Processing.
+  const submit = useCallback(
+    async (file: File) => {
+      try {
+        const jobId = await createJob(file);
+        nav(`/jobs/${jobId}`);
+      } catch (e) {
+        toast.error(`Upload failed: ${String(e)}`);
+      }
+    },
+    [nav]
+  );
 
   return (
     <div className="min-h-full">
@@ -57,13 +67,13 @@ export default function Workspace() {
           onDrop={(e) => {
             e.preventDefault(); setOver(false);
             const f = e.dataTransfer.files?.[0];
-            submit({ name: f?.name ?? "bom.csv", size: f?.size ?? 0 });
+            if (f) submit(f);
           }}
           onClick={() => inputRef.current?.click()}
           className={`relative cursor-pointer bg-card rounded-lg border ${over ? "border-accent ring-4 ring-accent-cyan/15" : "border-border"} border-dashed [border-width:1.5px] p-10 text-center transition-colors`}
         >
           <input ref={inputRef} type="file" hidden accept=".csv,.xlsx,.xls,.pdf"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) submit({ name: f.name, size: f.size }); }} />
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) submit(f); }} />
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent mb-4">
             <Upload className="h-5 w-5" />
           </div>
@@ -71,7 +81,7 @@ export default function Workspace() {
           <div className="mt-1 text-sm text-muted-foreground mono">Excel · CSV · PDF · up to 25MB</div>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); submit({ name: "pasted-rows.csv", size: 1 }); }}
+            onClick={(e) => { e.stopPropagation(); toast.info("Paste-rows is coming soon — drop a file to process a BOM."); }}
             className="mt-4 text-sm text-accent hover:underline focus-ring rounded">
             or paste rows directly
           </button>
@@ -144,7 +154,7 @@ export default function Workspace() {
       {/* QUICKSTART */}
       <section className="max-w-7xl mx-auto px-8 mt-12 mb-16 grid grid-cols-3 gap-6">
         <button
-          onClick={() => submit({ name: "Sample_Customer_BOM.xlsx", size: 1 })}
+          onClick={() => toast.info("Drop your own BOM file above to run the live pipeline.")}
           className="text-left rounded-lg border border-border bg-card p-5 hover:border-accent transition-colors focus-ring">
           <FileSpreadsheet className="h-4 w-4 text-accent" />
           <div className="mt-3 font-medium">Try a sample BOM</div>
