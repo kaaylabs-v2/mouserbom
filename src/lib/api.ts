@@ -283,3 +283,35 @@ export async function downloadMouserQuote(jobId: string, fmt: "xlsx" | "csv"): P
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// --- Catalog browse (GET /v1/catalog) -------------------------------------
+
+export interface CatalogItem {
+  sku: string;
+  mpn: string;
+  manufacturer: string;
+  description: string;
+  package: string | null;
+  lifecycle: string;
+  price: { amount: number; currency: string } | null;
+  stock: number;
+}
+
+export interface CatalogPage {
+  items: CatalogItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export async function fetchCatalog(
+  search: string,
+  page: number,
+  limit: number
+): Promise<CatalogPage> {
+  const params = new URLSearchParams();
+  if (search.trim()) params.set("search", search.trim());
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  return getJSON<CatalogPage>(`/catalog?${params.toString()}`);
+}

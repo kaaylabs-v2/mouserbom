@@ -7,6 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import Workspace from "./pages/Workspace";
 import Processing from "./pages/Processing";
 import Results from "./pages/Results";
+import Catalog from "./pages/Catalog";
 import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
 import Architecture from "./pages/Architecture";
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/jobs" element={<Navigate to="/" replace />} />
             <Route path="/jobs/:jobId" element={<Processing />} />
             <Route path="/jobs/:jobId/results" element={<Results />} />
+            <Route path="/catalog" element={<Catalog />} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/architecture" element={<Architecture />} />

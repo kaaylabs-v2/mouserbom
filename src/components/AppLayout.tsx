@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { Boxes, Layers, ShieldCheck, Settings, Search, Moon, Sun, ChevronDown, Network } from "lucide-react";
+import { Boxes, Layers, ShieldCheck, Settings, Search, Moon, Sun, ChevronDown, Network, Database } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { useEffect, useState } from "react";
 
 const nav = [
   { to: "/", label: "Workspace", icon: Boxes, end: true },
   { to: "/jobs", label: "Jobs", icon: Layers },
+  { to: "/catalog", label: "Catalog", icon: Database },
   { to: "/architecture", label: "Architecture", icon: Network },
   { to: "/policies", label: "Policies", icon: ShieldCheck },
   { to: "/settings", label: "Settings", icon: Settings },
