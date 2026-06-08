@@ -1,4 +1,6 @@
-export type Lifecycle = "active" | "nrnd" | "obsolete";
+// Mirrors the backend Lifecycle (app/schemas/line.py). The full set so the
+// real value flows to the UI instead of being collapsed to "active".
+export type Lifecycle = "active" | "nrnd" | "ltb" | "obsolete" | "preview" | "unknown";
 export type ParsedInput = {
   mpn?: string;
   description?: string;
