@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { submitFeedback } from "@/lib/mockApi";
 import { fetchResults, fetchJobMeta, downloadMouserQuote } from "@/lib/api";
-import { ResultRow, AltRow } from "@/lib/mockData";
+import { ResultRow, AltRow, Lifecycle } from "@/lib/mockData";
 import { ConfidenceBar, StockBar } from "@/components/atoms";
 import { ChevronRight, Download, Code2, Share2, Search, MoreHorizontal, X, Check, Copy, FileText, Cpu, Lightbulb, HelpCircle, Loader2 } from "lucide-react";
 
@@ -381,6 +381,23 @@ function priceTiers(price: number) {
   return [[1, price], [10, price * 0.92], [100, price * 0.84], [1000, price * 0.71]] as const;
 }
 
+// Lifecycle badge colour by severity (matches the palette: success/warn/
+// danger/muted). A non-active part never reads as a green "active".
+function lifecycleBadgeClass(lc: Lifecycle): string {
+  switch (lc) {
+    case "active":
+      return "bg-success/10 text-success";
+    case "nrnd":
+    case "preview":
+    case "ltb":
+      return "bg-warn/10 text-warn";
+    case "obsolete":
+      return "bg-danger/10 text-danger";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
 function PriceCell({ price }: { price: number | null }) {
   if (price == null) return <span className="mono text-sm text-muted-foreground">—</span>;
   return (
@@ -728,7 +745,7 @@ function LineDrawer({ row, tab, setTab, onClose, onAction, jobId, onApplyOverrid
                   <div className="flex-1">
                     <div className="mono text-sm font-medium">{row.sku}</div>
                     <div className="text-xs text-muted-foreground">{row.mfr} · {row.pkg}</div>
-                    <span className="mt-2 inline-block text-[10px] mono px-1.5 py-0.5 rounded bg-success/10 text-success uppercase">Lifecycle: {row.lifecycle}</span>
+                    <span className={`mt-2 inline-block text-[10px] mono px-1.5 py-0.5 rounded uppercase ${lifecycleBadgeClass(row.lifecycle)}`}>Lifecycle: {row.lifecycle}</span>
                   </div>
                 </div>
               </div>

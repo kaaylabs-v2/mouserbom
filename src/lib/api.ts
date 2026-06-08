@@ -79,9 +79,20 @@ interface BackendBomResult {
 
 // --- mappers --------------------------------------------------------------
 
-function toLifecycle(raw: string | null | undefined): Lifecycle {
-  if (raw === "active" || raw === "nrnd" || raw === "obsolete") return raw;
-  return "active"; // preview/ltb/unknown → display as active (POC)
+// Pass the backend lifecycle through verbatim; anything unrecognized (incl.
+// null/missing) reads as "unknown" — NOT "active". Silently relabeling a
+// non-active part as active misrepresents its real status.
+export function toLifecycle(raw: string | null | undefined): Lifecycle {
+  switch (raw) {
+    case "active":
+    case "nrnd":
+    case "ltb":
+    case "obsolete":
+    case "preview":
+      return raw;
+    default:
+      return "unknown";
+  }
 }
 
 function toAltRow(s: BackendSku): AltRow {
