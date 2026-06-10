@@ -34,12 +34,21 @@ async function getJSON<T>(path: string): Promise<T> {
 
 // --- backend shapes (minimal, only what the read path consumes) -----------
 
+interface BackendJobMetrics {
+  // From GET /jobs[/{id}].metrics; persisted with exclude_none, so any field
+  // may be absent. line_count/matched_count are in the contract but not yet
+  // populated by the pipeline — the dashboard maps them null-safely.
+  duration_ms?: number | null;
+  line_count?: number | null;
+  matched_count?: number | null;
+}
 interface BackendJob {
   id: string;
   status: string;
   result_id: string | null;
   source: { filename?: string; content_type?: string };
   created_at?: string;
+  metrics?: BackendJobMetrics | null;
 }
 
 interface BackendMoney {
@@ -168,6 +177,59 @@ export async function fetchResults(jobId: string): Promise<ResultRow[]> {
     `/results/${encodeURIComponent(job.result_id)}`
   );
   return result.lines.map(lineToResultRow);
+}
+
+// --- Workspace dashboard: recent jobs (GET /v1/jobs) -----------------------
+
+// The FE status vocabulary (StatusPill). The backend's four mid-pipeline
+// statuses (parsing/matching/ranking/enriching) all collapse to "processing".
+export type RecentJobStatus = "queued" | "processing" | "complete" | "partial" | "failed";
+
+export interface RecentJob {
+  id: string;
+  file: string;
+  lines: number | null;
+  status: RecentJobStatus;
+  matchRate: number | null;
+  submitted: string; // ISO
+  durationMs: number | null;
+}
+
+function toRecentStatus(raw: string): RecentJobStatus {
+  switch (raw) {
+    case "queued":
+    case "complete":
+    case "failed":
+    case "partial":
+      return raw;
+    case "parsing":
+    case "matching":
+    case "ranking":
+    case "enriching":
+      return "processing";
+    default:
+      // Out-of-contract value — StatusPill's own fallback is "queued"; match it.
+      return "queued";
+  }
+}
+
+export async function listRecentJobs(limit = 50): Promise<RecentJob[]> {
+  const jobs = await getJSON<BackendJob[]>(`/jobs?limit=${limit}`);
+  return jobs.map((j) => {
+    const m = j.metrics ?? {};
+    const lines = m.line_count ?? null;
+    const matched = m.matched_count ?? null;
+    return {
+      id: j.id,
+      file: j.source?.filename ?? "bom",
+      lines,
+      status: toRecentStatus(j.status),
+      // Null-safe: either count absent (incl. failed jobs) → no rate, not NaN.
+      matchRate: lines != null && lines > 0 && matched != null ? matched / lines : null,
+      submitted: j.created_at ?? "",
+      durationMs: m.duration_ms ?? null,
+    };
+  });
 }
 
 // --- Stage B: create job (multipart upload) -------------------------------
