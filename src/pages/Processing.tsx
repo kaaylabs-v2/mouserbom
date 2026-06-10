@@ -17,6 +17,19 @@ const STAGE_DEFS: { key: string; label: string }[] = [
 
 type StageState = "pending" | "active" | "complete" | "failed";
 
+// Minimum time a stage stays visibly ACTIVE before it may flip to complete.
+// Small files finish stages 1-3 before this screen first paints; the SSE
+// history replay then marks them complete instantly and they never animate
+// ("skips to step 4"). The dwell paces PRESENTATION only — the data shown is
+// always a state the engine really reached, just never faster than the eye.
+// Slow live runs are unaffected (a stage already active ≥ dwell flips
+// immediately). Worst case added latency: 8 stages × 350ms = 2.8s.
+const STAGE_DWELL_MS = 350;
+
+type QueuedEvent =
+  | { kind: "stage"; stage: string; status: "started" | "completed" }
+  | { kind: "complete" };
+
 export default function Processing() {
   const { jobId } = useParams();
   const nav = useNavigate();
@@ -34,23 +47,72 @@ export default function Processing() {
       .then((m) => setMeta({ file: m.file }))
       .catch(() => setMeta({ file: jobId }));
 
+    // Paced event queue: replayed/bursty events drain in order, each stage
+    // holding ACTIVE for ≥ STAGE_DWELL_MS before completing. Failures and
+    // stream errors BYPASS the queue and surface immediately. Navigation to
+    // Results is itself queued, so it can never overtake the drain.
+    let unmounted = false;
+    const queue: QueuedEvent[] = [];
+    const activeAt: Record<string, number> = {};
+    let draining = false;
+
+    const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    const markActive = (stage: string) => {
+      activeAt[stage] ??= Date.now();
+      setStages((prev) => (prev[stage] === "pending" ? { ...prev, [stage]: "active" } : prev));
+    };
+
+    const drain = async () => {
+      if (draining) return;
+      draining = true;
+      try {
+        while (queue.length > 0 && !unmounted) {
+          const ev = queue.shift()!;
+          if (ev.kind === "stage") {
+            if (ev.status === "started") {
+              markActive(ev.stage);
+            } else {
+              // A completed stage must have been visibly active first.
+              markActive(ev.stage);
+              const wait = activeAt[ev.stage] + STAGE_DWELL_MS - Date.now();
+              if (wait > 0) await sleep(wait);
+              if (unmounted) return;
+              setStages((prev) => ({ ...prev, [ev.stage]: "complete" }));
+            }
+          } else if (!navigated.current) {
+            navigated.current = true;
+            await sleep(500); // the existing settle beat before Results
+            if (!unmounted) nav(`/jobs/${jobId}/results`);
+          }
+        }
+      } finally {
+        draining = false;
+      }
+    };
+
     const stop = streamJobEvents(jobId, {
-      onStage: (e) =>
-        setStages((prev) => ({
-          ...prev,
-          [e.stage]:
-            e.status === "completed" ? "complete" : e.status === "failed" ? "failed" : "active",
-        })),
+      onStage: (e) => {
+        if (e.status === "failed") {
+          // Error states bypass the dwell queue — surface immediately.
+          setStages((prev) => ({ ...prev, [e.stage]: "failed" }));
+          return;
+        }
+        queue.push({ kind: "stage", stage: e.stage, status: e.status });
+        void drain();
+      },
       onProgress: (e) => setProgress({ matched: e.matched, total: e.total }),
       onComplete: (e) => {
-        if (e.result_id && !navigated.current) {
-          navigated.current = true;
-          setTimeout(() => nav(`/jobs/${jobId}/results`), 500);
+        if (e.result_id) {
+          queue.push({ kind: "complete" });
+          void drain();
         }
       },
-      onError: (e) => setError(e.message),
+      onError: (e) => setError(e.message), // bypasses the queue
     });
-    return stop;
+    return () => {
+      unmounted = true;
+      stop();
+    };
   }, [jobId, nav]);
 
   if (!jobId) return <div className="p-12 text-muted-foreground">Job not found.</div>;
@@ -83,7 +145,7 @@ export default function Processing() {
         <div className="flex items-center justify-between gap-3">
           {orderedStages.map((s, i) => (
             <div key={s.key} className="flex items-center flex-1 last:flex-none">
-              <StageCard label={s.label} state={s.state} idx={i} />
+              <StageCard label={s.label} state={s.state} idx={i} stageKey={s.key} />
               {i < orderedStages.length - 1 && (
                 <div
                   className={`h-px flex-1 mx-2 ${s.state === "complete" ? "bg-success" : "bg-border"}`}
@@ -111,7 +173,17 @@ export default function Processing() {
   );
 }
 
-function StageCard({ label, state, idx }: { label: string; state: StageState; idx: number }) {
+function StageCard({
+  label,
+  state,
+  idx,
+  stageKey,
+}: {
+  label: string;
+  state: StageState;
+  idx: number;
+  stageKey: string;
+}) {
   const stateClasses =
     state === "active"
       ? "border-accent shadow-[0_0_0_3px_hsl(var(--accent)/0.12)]"
@@ -121,7 +193,11 @@ function StageCard({ label, state, idx }: { label: string; state: StageState; id
           ? "border-danger"
           : "border-border opacity-60";
   return (
-    <div className={`rounded-md border bg-card px-3 py-2.5 w-[120px] ${stateClasses}`}>
+    <div
+      data-stage={stageKey}
+      data-state={state}
+      className={`rounded-md border bg-card px-3 py-2.5 w-[120px] ${stateClasses}`}
+    >
       <div className="flex items-center justify-between">
         <span className="mono text-[10px] text-muted-foreground">0{idx + 1}</span>
         {state === "active" && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
