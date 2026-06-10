@@ -237,7 +237,10 @@ function toRecentStatus(raw: string): RecentJobStatus {
   }
 }
 
-export async function listRecentJobs(limit = 50): Promise<RecentJob[]> {
+// limit=200 is the backend's Query max (app/api/jobs.py list_jobs). The 30d
+// stat therefore still caps at 200 jobs; the real fix is a backend /v1/stats
+// endpoint — decision pending with Santosh.
+export async function listRecentJobs(limit = 200): Promise<RecentJob[]> {
   const jobs = await getJSON<BackendJob[]>(`/jobs?limit=${limit}`);
   return jobs.map((j) => {
     const m = j.metrics ?? {};
