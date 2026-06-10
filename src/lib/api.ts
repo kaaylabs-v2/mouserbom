@@ -36,9 +36,10 @@ async function getJSON<T>(path: string): Promise<T> {
 
 interface BackendJobMetrics {
   // From GET /jobs[/{id}].metrics; persisted with exclude_none, so any field
-  // may be absent. line_count/matched_count are in the contract but not yet
-  // populated by the pipeline — the dashboard maps them null-safely.
+  // may be absent. stage_cost_usd feeds the Results run-metrics chip;
+  // line_count/matched_count feed the dashboard (both mapped null-safely).
   duration_ms?: number | null;
+  stage_cost_usd?: Record<string, number> | null;
   line_count?: number | null;
   matched_count?: number | null;
 }
@@ -156,17 +157,40 @@ function lineToResultRow(line: BackendLine, index: number): ResultRow {
 
 export async function fetchJobMeta(
   jobId: string
-): Promise<{ file: string; lines: number; createdAt: string }> {
+): Promise<{
+  file: string;
+  lines: number;
+  createdAt: string;
+  // Run metrics, both already present on GET /jobs/{id} — NO backend change.
+  // durationMs: server-side pipeline elapsed (not wall-clock incl. queue).
+  // costUsd: SUM of the per-stage LLM cost (an ESTIMATE, not a billed figure).
+  durationMs: number | null;
+  costUsd: number | null;
+}> {
   const job = await getJSON<BackendJob>(`/jobs/${encodeURIComponent(jobId)}`);
   let lines = 0;
   if (job.result_id) {
     const result = await getJSON<BackendBomResult>(`/results/${encodeURIComponent(job.result_id)}`);
     lines = result.lines.length;
   }
+  // Two distinct "absent" cases the UI must tell apart:
+  //  - duration_ms ABSENT → job hasn't finished (metrics not stamped yet) →
+  //    durationMs null → header shows NO run-metrics chip.
+  //  - duration_ms PRESENT but stage_cost_usd ABSENT → job finished and NO LLM
+  //    ran (e.g. every line resolved via the exact-MPN tiebreak, Sonnet
+  //    skipped) → costUsd 0, a TRUE number meaning "no AI calls", not missing.
+  const m = job.metrics;
+  const durationMs = typeof m?.duration_ms === "number" ? m.duration_ms : null;
+  const costUsd =
+    durationMs === null
+      ? null
+      : Object.values(m?.stage_cost_usd ?? {}).reduce((sum, c) => sum + c, 0);
   return {
     file: job.source?.filename ?? "bom",
     lines,
     createdAt: job.created_at ?? "",
+    durationMs,
+    costUsd,
   };
 }
 

@@ -98,6 +98,8 @@ describe("Results table column alignment", () => {
       file: "sample-rfq-form.pdf",
       lines: ROWS.length,
       createdAt: "",
+      durationMs: null,
+      costUsd: null,
     });
   });
 

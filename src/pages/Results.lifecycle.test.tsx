@@ -39,7 +39,7 @@ function makeRow(o: Partial<ResultRow> & Pick<ResultRow, "n" | "sku" | "mpn">): 
 
 function renderResults(rows: ResultRow[]) {
   vi.mocked(fetchResults).mockResolvedValue(rows);
-  vi.mocked(fetchJobMeta).mockResolvedValue({ file: "bom.xlsx", lines: rows.length, createdAt: "" });
+  vi.mocked(fetchJobMeta).mockResolvedValue({ file: "bom.xlsx", lines: rows.length, createdAt: "", durationMs: null, costUsd: null });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>

@@ -20,6 +20,19 @@ import * as XLSX from "xlsx";
 type FilterBand = "high" | "med" | "low";
 type DrawerTab = "reco" | "alts" | "input" | "audit" | "diag";
 
+// Run-metrics header chip: server-side elapsed + estimated LLM cost, straight
+// from GET /jobs/{id}. Returns null while the job is still processing (no
+// duration yet) so nothing renders. Cost is ALWAYS shown as an estimate (~$);
+// a zero cost means the run needed no AI calls (every line hit the exact-MPN
+// tiebreak) — surfaced as such, never as "$undefined"/NaN.
+function runMetricsLabel(durationMs: number | null, costUsd: number | null): string | null {
+  if (durationMs == null) return null;
+  const elapsed = durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
+  const cost = costUsd ?? 0;
+  const costPart = cost === 0 ? `~$0.00 · no AI calls needed` : `~$${cost.toFixed(2)}`;
+  return `Processed in ${elapsed} · ${costPart}`;
+}
+
 export default function Results() {
   const { jobId } = useParams();
   // Stage A: real backend read-path (replaces the synchronous mock).
@@ -165,6 +178,17 @@ export default function Results() {
               <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-accent-cyan/10">
                 <span className="live-dot" /> Live snapshot · <span className="mono">snap_2026_04_28</span>
               </span>
+              {(() => {
+                const label = runMetricsLabel(meta?.durationMs ?? null, meta?.costUsd ?? null);
+                return label ? (
+                  <>
+                    <span>·</span>
+                    <span className="mono" title="Server-side pipeline time and estimated AI cost for this run">
+                      {label}
+                    </span>
+                  </>
+                ) : null;
+              })()}
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
