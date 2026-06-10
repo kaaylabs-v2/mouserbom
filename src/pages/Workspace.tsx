@@ -1,21 +1,62 @@
 import { useNavigate } from "react-router-dom";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Upload, ArrowRight, BookOpen, Plug, FileSpreadsheet } from "lucide-react";
-import { listJobs } from "@/lib/mockApi";
-import { createJob } from "@/lib/api";
+import { createJob, listRecentJobs, type RecentJob } from "@/lib/api";
 import { toast } from "sonner";
 import { StatusPill } from "@/components/atoms";
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 
-const spark = (n: number, seed: number) =>
-  Array.from({ length: n }, (_, i) => ({ v: Math.sin(i / 1.5 + seed) * 8 + 24 + (i % 3) * 2 + seed * 1.5 }));
+const DAY_MS = 86_400_000;
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
-const stats = [
-  { label: "BOMs processed (30d)", value: "1,284", data: spark(14, 0.3) },
-  { label: "Avg. match accuracy", value: "94.2%", data: spark(14, 0.7) },
-  { label: "Avg. processing time", value: "11.4s", data: spark(14, 1.1) },
-];
+// "At a glance" is computed CLIENT-SIDE from the job list (POC scale, no
+// stats endpoint — zero contract drift). Sparklines are 14 real daily
+// buckets, oldest → today; days with no jobs are null so recharts gaps them.
+function computeGlance(jobs: RecentJob[]) {
+  const now = Date.now();
+  const inWindow = jobs.filter((j) => {
+    const t = new Date(j.submitted).getTime();
+    return Number.isFinite(t) && now - t <= 30 * DAY_MS;
+  });
+  const done = inWindow.filter((j) => j.status === "complete" || j.status === "partial");
+  const rates = done.map((j) => j.matchRate).filter((r): r is number => r != null);
+  const durs = done.map((j) => j.durationMs).filter((d): d is number => d != null);
+
+  // 14 daily buckets, index 0 = 13 days ago … index 13 = today.
+  const byDay: RecentJob[][] = Array.from({ length: 14 }, () => []);
+  for (const j of inWindow) {
+    const age = Math.floor((now - new Date(j.submitted).getTime()) / DAY_MS);
+    if (age >= 0 && age < 14) byDay[13 - age].push(j);
+  }
+  const sparkOf = (f: (day: RecentJob[]) => number | null) =>
+    byDay.map((day) => ({ v: day.length ? f(day) : null }));
+
+  return [
+    {
+      label: "BOMs processed (30d)",
+      value: inWindow.length.toLocaleString("en-US"),
+      data: sparkOf((day) => day.length),
+    },
+    {
+      label: "Avg. match accuracy",
+      value: rates.length ? (mean(rates) * 100).toFixed(1) + "%" : "—",
+      data: sparkOf((day) => {
+        const r = day.map((j) => j.matchRate).filter((x): x is number => x != null);
+        return r.length ? mean(r) * 100 : null;
+      }),
+    },
+    {
+      label: "Avg. processing time",
+      value: durs.length ? (mean(durs) / 1000).toFixed(1) + "s" : "—",
+      data: sparkOf((day) => {
+        const d = day.map((j) => j.durationMs).filter((x): x is number => x != null);
+        return d.length ? mean(d) / 1000 : null;
+      }),
+    },
+  ];
+}
 
 const fmtRel = (iso: string) => {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -28,7 +69,14 @@ export default function Workspace() {
   const nav = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const recentJobs = listJobs();
+  // Live read of GET /v1/jobs; refetch keeps in-flight jobs' pills current.
+  const { data: jobs, isLoading, isError } = useQuery({
+    queryKey: ["recent-jobs"],
+    queryFn: () => listRecentJobs(),
+    refetchInterval: 30000,
+  });
+  const recentJobs = jobs ?? [];
+  const stats = useMemo(() => computeGlance(jobs ?? []), [jobs]);
 
   // Stage B: real multipart upload → POST /v1/jobs → navigate to live Processing.
   const submit = useCallback(
@@ -112,16 +160,37 @@ export default function Workspace() {
               </tr>
             </thead>
             <tbody>
+              {isLoading && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    Loading recent jobs…
+                  </td>
+                </tr>
+              )}
+              {isError && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    Couldn't reach the engine — is the backend running?
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !isError && recentJobs.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    No jobs yet — drop a BOM above to process your first one.
+                  </td>
+                </tr>
+              )}
               {recentJobs.map(j => (
                 <tr key={j.id}
-                    onClick={() => nav(j.status === "processing" ? `/jobs/${j.id}` : `/jobs/${j.id}/results`)}
+                    onClick={() => nav(j.status === "processing" || j.status === "queued" ? `/jobs/${j.id}` : `/jobs/${j.id}/results`)}
                     className="border-b border-border last:border-0 cursor-pointer hover:bg-surface-muted">
                   <td className="px-5 py-3 mono text-xs text-muted-foreground">{j.id}</td>
                   <td className="px-3 py-3 flex items-center gap-2">
                     <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
                     {j.file}
                   </td>
-                  <td className="px-3 py-3 mono text-right tabular-nums">{j.lines}</td>
+                  <td className="px-3 py-3 mono text-right tabular-nums">{j.lines ?? "—"}</td>
                   <td className="px-3 py-3"><StatusPill status={j.status} /></td>
                   <td className="px-3 py-3 mono text-right tabular-nums">{j.matchRate != null ? (j.matchRate * 100).toFixed(0) + "%" : "—"}</td>
                   <td className="px-3 py-3 mono text-right text-xs text-muted-foreground">{fmtRel(j.submitted)}</td>
